@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!--
+        Phase 7 prototype (feature-flagged, default off): the embedded-map
+        proof of concept fetches its style document and vector tiles over
+        HTTPS. The launcher itself and the navigation hand-off work fully
+        offline; remove this permission together with the map prototype if
+        the ship decision says no. ACCESS_WIFI_STATE is merged in by the
+        MapLibre dependency for its internal download management and is
+        deliberately kept while the prototype exists; it is an install-time
+        permission with no runtime prompt.
+    -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!--
+        Dashboard status indicators (Phase 14): reading the active network
+        transport needs ACCESS_NETWORK_STATE declared explicitly instead of
+        relying on the MapLibre merge, because the indicators ship
+        independently of the map prototype. Install-time, no prompt.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!--
+        Bluetooth status indicator below API 31: the legacy BLUETOOTH
+        permission is install-time and declared only for API 23-30. On API
+        31+ the adapter state would need BLUETOOTH_CONNECT, which the
+        launcher deliberately never requests — the indicator stays hidden
+        there and reports UNKNOWN.
+    -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH"
+        android:maxSdkVersion="30" />
+
+    <!--
+        Phase 10 audit: MapLibre declares location permissions for its
+        optional user-location puck, which this prototype never uses (no
+        location API is called anywhere in the app). Removed at merge time
+        so the shipped manifest declares no location access at all.
+    -->
+    <uses-permission
+        android:name="android.permission.ACCESS_FINE_LOCATION"
+        tools:node="remove" />
+    <uses-permission
+        android:name="android.permission.ACCESS_COARSE_LOCATION"
+        tools:node="remove" />
+
+    <!--
+        Package visibility (API 30+): the app drawer queries launcher-intent
+        activities. This <queries> block scopes visibility to exactly the
+        apps that declare a launcher activity; no QUERY_ALL_PACKAGES needed.
+    -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+
+        <!--
+            Category chips (Phase 15): each CATEGORY_APP_* value is probed
+            once per app-list refresh to classify apps whose declared
+            ApplicationInfo.category is missing or unmapped (games, images,
+            news). These entries extend the launcher query above; they never
+            grant visibility beyond category-hinted launcher activities, and
+            QUERY_ALL_PACKAGES is still deliberately absent.
+        -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.APP_MAPS" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.APP_MUSIC" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.APP_MESSAGING" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.APP_EMAIL" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.APP_CONTACTS" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.APP_CALENDAR" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.APP_BROWSER" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.APP_CALCULATOR" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.APP_GALLERY" />
+        </intent>
+
+        <!--
+            Navigation hand-off (API 30+): geo-intent visibility for
+            destination discovery, plus the two apps with documented URI
+            formats that are probed by package name.
+        -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="geo" />
+        </intent>
+        <package android:name="com.google.android.apps.maps" />
+        <package android:name="com.waze" />
+    </queries>
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.AutoVerse">
+
+        <activity
+            android:name=".MainActivity"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden|navigation|uiMode|density"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:resizeableActivity="true"
+            tools:targetApi="24">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!--
+            Binds as a notification listener solely because the platform gates
+            media-session access behind that binding. The implementation is
+            empty: notifications are never read, stored, or forwarded.
+        -->
+        <service
+            android:name=".core.media.AutoVerseMediaListenerService"
+            android:exported="true"
+            android:label="@string/media_access_service_label"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+    </application>
+
+</manifest>
