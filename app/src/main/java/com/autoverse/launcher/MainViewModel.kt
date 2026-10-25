@@ -34,6 +34,11 @@ import com.autoverse.launcher.core.media.MediaUiState
 import com.autoverse.launcher.core.media.SystemMediaSessionRepository
 import com.autoverse.launcher.core.media.mediaCommandFailureMessage
 import com.autoverse.launcher.core.model.AppSettings
+import com.autoverse.launcher.core.obd.ObdConnectionState
+import com.autoverse.launcher.core.obd.SystemObdRepository
+import com.autoverse.launcher.core.sound.ThemeSoundManager
+import com.autoverse.launcher.core.voice.OfflineVoiceEngine
+import com.autoverse.launcher.core.voice.OfflineVoiceState
 import com.autoverse.launcher.core.model.AppearanceMode
 import com.autoverse.launcher.core.model.AutoVerseThemeId
 import com.autoverse.launcher.core.model.InstalledApp
@@ -67,6 +72,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
@@ -83,6 +91,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val navigationPlacesRepository = NavigationPlacesRepository(application)
     private val mediaRepository: MediaSessionRepository = SystemMediaSessionRepository(application)
     private val navigationRepository: NavigationRepository = SystemNavigationRepository(application)
+    private val obdRepository = SystemObdRepository(application)
     private val connectivityMonitor = ConnectivityMonitor(application)
     private val systemSampler = SystemSampler(application)
 
@@ -254,10 +263,160 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         navigationPlacesRepository.recentDestinations
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
+    // ---- Tier 2: live engine data (OBD over Bluetooth ELM327) ----
+
+    private val _obdState = MutableStateFlow<ObdConnectionState>(ObdConnectionState.Disconnected)
+
+    /** Live OBD connection state; sampled PIDs ride inside [ObdConnectionState.Connected]. */
+    val obdState: StateFlow<ObdConnectionState> = _obdState.asStateFlow()
+
+    private var obdJob: Job? = null
+    private var obdStop = false
+
+    /**
+     * Starts a polling session against the first bonded ELM327 adapter.
+     * Requires BLUETOOTH_CONNECT on API 31+; surfaces the permission case
+     * instead of crashing. Never fabricates readings — see ObdProtocol.
+     */
+    fun connectObd() {
+        if (obdJob?.isActive == true) return
+        if (!obdRepository.hasConnectPermission) {
+            _obdState.value = ObdConnectionState.PermissionRequired
+            return
+        }
+        if (!obdRepository.isBluetoothReady()) {
+            _obdState.value = ObdConnectionState.Error("Bluetooth is off — turn it on and try again")
+            return
+        }
+        obdStop = false
+        var deviceName = obdRepository.findPairedAdapter() ?: "OBD adapter"
+        _obdState.value = ObdConnectionState.Connecting(deviceName)
+        obdJob = viewModelScope.launch {
+            try {
+                obdRepository.runSession(
+                    onState = { state ->
+                        when (state) {
+                            is ObdConnectionState.Connecting -> deviceName = state.deviceName
+                            else -> Unit
+                        }
+                        _obdState.value = state
+                    },
+                    onSample = { sample ->
+                        _obdState.value = ObdConnectionState.Connected(deviceName, sample)
+                    },
+                    shouldStop = { obdStop },
+                )
+                _obdState.value = ObdConnectionState.Disconnected
+            } catch (cancellation: CancellationException) {
+                _obdState.value = ObdConnectionState.Disconnected
+            } catch (failure: Exception) {
+                _obdState.value = ObdConnectionState.Error(failure.message ?: "OBD connection failed")
+            }
+        }
+    }
+
+    fun disconnectObd() {
+        obdStop = true
+        obdRepository.disconnect()
+        obdJob?.cancel()
+        obdJob = null
+        _obdState.value = ObdConnectionState.Disconnected
+    }
+
+    // ---- Tier 2 part 2: offline wake-word voice (Vosk, opt-in) ----
+
+    private val _offlineVoiceState = MutableStateFlow<OfflineVoiceState>(OfflineVoiceState.Disabled)
+
+    /** Download/listen/capture states surfaced to the cockpit orb. */
+    val offlineVoiceState: StateFlow<OfflineVoiceState> = _offlineVoiceState.asStateFlow()
+
+    private val _offlineVoiceCommands = MutableSharedFlow<String>(extraBufferCapacity = 4)
+
+    /** Transcribed commands; the cockpit routes them like tap-to-talk. */
+    val offlineVoiceCommands: SharedFlow<String> = _offlineVoiceCommands.asSharedFlow()
+
+    private val offlineVoiceEngine: OfflineVoiceEngine by lazy {
+        OfflineVoiceEngine(
+            context = application,
+            scope = viewModelScope,
+            onState = { _offlineVoiceState.value = it },
+            onCommand = { command -> _offlineVoiceCommands.tryEmit(command) },
+        )
+    }
+
+    private var appForeground = false
+
+    /** Mic-permission prompt result is pushed through the bridge handler. */
+    fun onMicPermissionResult(granted: Boolean) {
+        if (granted) {
+            applyOfflineVoice(enabled = settings.value.offlineVoiceEnabled, micGranted = true)
+        } else {
+            _offlineVoiceState.value = OfflineVoiceState.Error(OfflineVoiceEngine.MIC_PERMISSION_MESSAGE)
+        }
+    }
+
+    fun hasMicPermission(): Boolean = offlineVoiceEngine.hasMicPermission
+
+    fun onAppForeground() {
+        appForeground = true
+        applyOfflineVoice(enabled = settings.value.offlineVoiceEnabled, micGranted = null)
+    }
+
+    fun onAppBackground() {
+        appForeground = false
+        if (settings.value.offlineVoiceEnabled) {
+            offlineVoiceEngine.stop()
+            _offlineVoiceState.value = OfflineVoiceState.Disabled
+        }
+    }
+
+    private fun applyOfflineVoice(enabled: Boolean, micGranted: Boolean?) {
+        when {
+            !enabled -> {
+                offlineVoiceEngine.stop()
+                _offlineVoiceState.value = OfflineVoiceState.Disabled
+            }
+            micGranted == false ->
+                _offlineVoiceState.value = OfflineVoiceState.Error(OfflineVoiceEngine.MIC_PERMISSION_MESSAGE)
+            !offlineVoiceEngine.hasMicPermission ->
+                _offlineVoiceState.value = OfflineVoiceState.Error(OfflineVoiceEngine.MIC_PERMISSION_MESSAGE)
+            !appForeground -> offlineVoiceEngine.stop() // battery: never listen in background
+            else -> offlineVoiceEngine.start()
+        }
+    }
+
+    fun setOfflineVoiceEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setOfflineVoiceEnabled(enabled)
+            // the settings collector applies the runtime change
+        }
+    }
+
+    fun setPremiumUnlocked(unlocked: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setPremiumUnlocked(unlocked)
+        }
+    }
+
+    fun setOnboardingComplete(complete: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setOnboardingComplete(complete)
+        }
+    }
+
     fun setTheme(themeId: AutoVerseThemeId) {
         viewModelScope.launch {
             settingsRepository.setTheme(themeId)
             diagnosticLog.record(DiagnosticLevel.INFO, "Theme changed to ${themeId.displayName}")
+        }
+        if (settings.value.themeSoundsEnabled) {
+            ThemeSoundManager.playConfirmation()
+        }
+    }
+
+    fun setThemeSoundsEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setThemeSoundsEnabled(enabled)
         }
     }
 
@@ -317,16 +476,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 } else {
                     "Navigation app preference changed"
                 },
-            )
-        }
-    }
-
-    fun setEmbeddedMapEnabled(enabled: Boolean) {
-        viewModelScope.launch {
-            settingsRepository.setEmbeddedMapEnabled(enabled)
-            diagnosticLog.record(
-                DiagnosticLevel.INFO,
-                if (enabled) "Embedded map preview enabled" else "Embedded map preview disabled",
             )
         }
     }
@@ -585,6 +734,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return outcome
     }
 
+    /**
+     * Seeks the featured session to an absolute position (cockpit scrubber).
+     * Failure handling mirrors [sendMediaCommand] so a lost session or
+     * revoked access is reflected immediately.
+     */
+    suspend fun seekMediaTo(positionMs: Long): MediaCommandOutcome {
+        val outcome = mediaRepository.seekTo(positionMs)
+        if (outcome != MediaCommandOutcome.SENT) {
+            diagnosticLog.record(
+                if (outcome == MediaCommandOutcome.ACCESS_LOST) {
+                    DiagnosticLevel.ERROR
+                } else {
+                    DiagnosticLevel.WARN
+                },
+                mediaCommandFailureMessage(outcome),
+            )
+            refreshMediaSession()
+        }
+        return outcome
+    }
+
     /** Embedded artwork first, then the session-provided URI. */
     suspend fun loadMediaArtwork(state: MediaUiState): ImageBitmap? {
         val active = state as? MediaUiState.Active ?: return null
@@ -608,6 +778,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     init {
+        viewModelScope.launch {
+            settings.map { it.offlineVoiceEnabled }.distinctUntilChanged().collect { enabled ->
+                applyOfflineVoice(enabled = enabled, micGranted = null)
+            }
+        }
+
         application.registerComponentCallbacks(memoryTrimCallback)
         // One-shot schema upgrade; a no-op while the stamp is current. The
         // result also feeds the diagnostics store-health tile and startup log.
@@ -649,6 +825,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     override fun onCleared() {
+        obdStop = true
+        obdRepository.disconnect()
         getApplication<Application>().unregisterComponentCallbacks(memoryTrimCallback)
         getApplication<Application>().contentResolver.unregisterContentObserver(animationScaleObserver)
     }

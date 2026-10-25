@@ -195,4 +195,117 @@ class AppCategoryClassifierTest {
             }
         }
     }
+
+    // --- Keyword fallback (0.20.1) ------------------------------------------
+
+    @Test
+    fun `spotify lands in music and audio from its own name`() {
+        val result = AppCategoryClassifier.classify(
+            applicationCategory = ApplicationInfo.CATEGORY_UNDEFINED,
+            matchedIntentCategories = emptySet(),
+            label = "Spotify",
+            packageName = "com.spotify.music",
+        )
+        assertEquals(AppCategory.MUSIC_AUDIO, result)
+    }
+
+    @Test
+    fun `youtube music stays audio while youtube is video`() {
+        assertEquals(
+            AppCategory.MUSIC_AUDIO,
+            AppCategoryClassifier.classify(
+                ApplicationInfo.CATEGORY_UNDEFINED,
+                emptySet(),
+                label = "YT Music",
+                packageName = "com.google.android.apps.youtube.music",
+            ),
+        )
+        assertEquals(
+            AppCategory.VIDEO,
+            AppCategoryClassifier.classify(
+                ApplicationInfo.CATEGORY_UNDEFINED,
+                emptySet(),
+                label = "YouTube",
+                packageName = "com.google.android.youtube",
+            ),
+        )
+    }
+
+    @Test
+    fun `waze whatsapp and netflix classify from keywords`() {
+        assertEquals(
+            AppCategory.NAVIGATION,
+            AppCategoryClassifier.classify(
+                ApplicationInfo.CATEGORY_UNDEFINED, emptySet(), label = "Waze", packageName = "com.waze",
+            ),
+        )
+        assertEquals(
+            AppCategory.COMMUNICATION,
+            AppCategoryClassifier.classify(
+                ApplicationInfo.CATEGORY_UNDEFINED,
+                emptySet(),
+                label = "WhatsApp Messenger",
+                packageName = "com.whatsapp",
+            ),
+        )
+        assertEquals(
+            AppCategory.VIDEO,
+            AppCategoryClassifier.classify(
+                ApplicationInfo.CATEGORY_UNDEFINED,
+                emptySet(),
+                label = "Netflix",
+                packageName = "com.netflix.mediaclient",
+            ),
+        )
+    }
+
+    @Test
+    fun `declared category and probe matches still beat keywords`() {
+        // Spotify renamed to something keyword-free but declaring CATEGORY_AUDIO
+        assertEquals(
+            AppCategory.MUSIC_AUDIO,
+            AppCategoryClassifier.classify(
+                ApplicationInfo.CATEGORY_AUDIO,
+                emptySet(),
+                label = "Sound",
+                packageName = "com.example.sound",
+            ),
+        )
+        // Gallery probe match keeps OTHERS even if the label says "music"
+        assertEquals(
+            AppCategory.OTHERS,
+            AppCategoryClassifier.classify(
+                ApplicationInfo.CATEGORY_UNDEFINED,
+                setOf(Intent.CATEGORY_APP_GALLERY),
+                label = "Music Photos",
+                packageName = "com.example.gallery",
+            ),
+        )
+        // No signal at all still falls through to keywords
+        assertEquals(
+            AppCategory.MUSIC_AUDIO,
+            AppCategoryClassifier.classify(
+                ApplicationInfo.CATEGORY_UNDEFINED,
+                emptySet(),
+                label = "Music",
+                packageName = "com.example.something",
+            ),
+        )
+    }
+
+    @Test
+    fun `keyword fallback stays inside the real categories`() {
+        for (declared in -5..15) {
+            val result = AppCategoryClassifier.classify(
+                declared,
+                emptySet(),
+                label = "Spotify",
+                packageName = "com.spotify.music",
+            )
+            assertTrue(
+                "declared=$declared produced $result",
+                result != AppCategory.ALL,
+            )
+        }
+    }
 }

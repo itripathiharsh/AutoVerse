@@ -130,16 +130,3 @@ fun frameTrackingHealth(tracking: Boolean): ComponentHealth = if (tracking) {
     )
 }
 
-fun embeddedMapHealth(enabled: Boolean): ComponentHealth = if (enabled) {
-    ComponentHealth(
-        name = "Embedded map",
-        status = ComponentStatus.READY,
-        detail = "Experimental map preview is enabled.",
-    )
-} else {
-    ComponentHealth(
-        name = "Embedded map",
-        status = ComponentStatus.DISABLED,
-        detail = "Off by default; the preview is an experimental prototype.",
-    )
-}

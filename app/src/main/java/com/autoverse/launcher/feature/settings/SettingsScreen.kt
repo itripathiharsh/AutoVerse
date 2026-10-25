@@ -38,13 +38,13 @@ import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Insights
 import androidx.compose.material.icons.outlined.LightMode
 import androidx.compose.material.icons.outlined.Lock
-import androidx.compose.material.icons.outlined.Map
 import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material.icons.outlined.Navigation
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.Restore
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.VolumeUp
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.Warning
@@ -86,6 +86,7 @@ import com.autoverse.launcher.core.design.components.BrandPlate
 import com.autoverse.launcher.core.design.components.CockpitCard
 import com.autoverse.launcher.core.design.components.DashboardTopBar
 import com.autoverse.launcher.core.design.components.KeyValueRow
+import com.autoverse.launcher.core.design.components.PremiumUnlockDialog
 import com.autoverse.launcher.core.design.components.RailDestination
 import com.autoverse.launcher.core.design.components.SelectRow
 import com.autoverse.launcher.core.design.components.SliderRow
@@ -139,6 +140,9 @@ private const val TEXT_SCALE_STEPS = 8
 fun SettingsScreen(
     settings: AppSettings,
     onSetTheme: (AutoVerseThemeId) -> Unit,
+    onSetPremiumUnlocked: (Boolean) -> Unit = {},
+    onSetThemeSoundsEnabled: (Boolean) -> Unit = {},
+    onReplayOnboarding: () -> Unit = {},
     onSetAppearanceMode: (AppearanceMode) -> Unit,
     onSetReducedMotion: (Boolean) -> Unit,
     onSetTextScale: (Float) -> Unit,
@@ -149,8 +153,6 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
     navigationProviders: List<NavigationProvider> = emptyList(),
     onSetNavigationPackage: (String?) -> Unit = {},
-    onSetEmbeddedMapEnabled: (Boolean) -> Unit = {},
-    onOpenMapPreview: () -> Unit = {},
     notificationAccessGranted: Boolean = false,
     onOpenNotificationAccessSettings: () -> Boolean = { false },
     favoriteApps: List<InstalledApp> = emptyList(),
@@ -182,6 +184,9 @@ fun SettingsScreen(
 
     val callbacks = SettingsCallbacks(
         setTheme = onSetTheme,
+        setPremiumUnlocked = onSetPremiumUnlocked,
+        setThemeSoundsEnabled = onSetThemeSoundsEnabled,
+        runOnboarding = onReplayOnboarding,
         setAppearanceMode = onSetAppearanceMode,
         setReducedMotion = onSetReducedMotion,
         setTextScale = onSetTextScale,
@@ -189,8 +194,6 @@ fun SettingsScreen(
         setPreferSmoothness = onSetPreferSmoothness,
         setClock24h = onSetClock24h,
         setNavigationPackage = onSetNavigationPackage,
-        setEmbeddedMapEnabled = onSetEmbeddedMapEnabled,
-        openMapPreview = onOpenMapPreview,
         openNotificationAccessSettings = onOpenNotificationAccessSettings,
         launchApp = onLaunchApp,
         removeFavorite = onRemoveFavorite,
@@ -423,6 +426,9 @@ fun SettingsScreen(
  */
 private class SettingsCallbacks(
     val setTheme: (AutoVerseThemeId) -> Unit,
+    val setPremiumUnlocked: (Boolean) -> Unit,
+    val setThemeSoundsEnabled: (Boolean) -> Unit,
+    val runOnboarding: () -> Unit,
     val setAppearanceMode: (AppearanceMode) -> Unit,
     val setReducedMotion: (Boolean) -> Unit,
     val setTextScale: (Float) -> Unit,
@@ -430,8 +436,6 @@ private class SettingsCallbacks(
     val setPreferSmoothness: (Boolean) -> Unit,
     val setClock24h: (Boolean) -> Unit,
     val setNavigationPackage: (String?) -> Unit,
-    val setEmbeddedMapEnabled: (Boolean) -> Unit,
-    val openMapPreview: () -> Unit,
     val openNotificationAccessSettings: () -> Boolean,
     val launchApp: (InstalledApp) -> Unit,
     val removeFavorite: (InstalledApp) -> Unit,
@@ -634,7 +638,7 @@ private fun ControlsContent(
                 SettingsCategory.PERFORMANCE -> PerformanceSettings(settings, callbacks)
                 SettingsCategory.NOTIFICATIONS ->
                     NotificationsSettings(notificationAccessGranted, callbacks)
-                SettingsCategory.ABOUT -> AboutSettings()
+                SettingsCategory.ABOUT -> AboutSettings(onReplayOnboarding = callbacks.runOnboarding)
             }
         }
         if (includeSecondary) {
@@ -802,21 +806,49 @@ private fun AppearanceSettings(
     callbacks: SettingsCallbacks,
 ) {
     val colors = LocalAutoVerseColors.current
+    var showPremiumDialog by remember { mutableStateOf(false) }
+
     WidgetContainer(
         title = "THEME",
-        subtitle = "One design language, five characters",
+        subtitle = "One design language, ten characters",
         icon = Icons.Outlined.DarkMode,
     ) {
         AutoVerseThemeId.entries.forEach { theme ->
+            val locked = theme.premium && !settings.premiumUnlocked
             SelectRow(
                 title = theme.displayName,
-                subtitle = themeDescription(theme),
+                subtitle = themeDescription(theme) + if (theme.premium) " · Premium" else "",
                 selected = theme == settings.themeId,
                 enabled = true,
-                onSelect = { callbacks.setTheme(theme) },
+                onSelect = {
+                    if (locked) showPremiumDialog = true else callbacks.setTheme(theme)
+                },
                 leading = { ThemeSwatch(theme) },
             )
         }
+    }
+
+    if (showPremiumDialog) {
+        PremiumUnlockDialog(
+            onUnlock = {
+                callbacks.setPremiumUnlocked(true)
+                showPremiumDialog = false
+            },
+            onDismiss = { showPremiumDialog = false },
+        )
+    }
+
+    WidgetContainer(
+        title = "SOUND",
+        subtitle = "Synthesized locally — off by default, never over navigation",
+        icon = Icons.Outlined.VolumeUp,
+    ) {
+        SwitchRow(
+            title = "Theme confirmation sounds",
+            subtitle = "A short local tone when a theme is applied",
+            checked = settings.themeSoundsEnabled,
+            onCheckedChange = callbacks.setThemeSoundsEnabled,
+        )
     }
 
     WidgetContainer(
@@ -961,24 +993,6 @@ private fun NavigationSettings(
                 style = MaterialTheme.typography.bodyMedium,
                 color = colors.warning,
             )
-        }
-    }
-
-    WidgetContainer(
-        title = "EXPERIMENTAL",
-        subtitle = "Prototype features under evaluation \u2014 off by default",
-        icon = Icons.Outlined.Map,
-    ) {
-        SwitchRow(
-            title = "Embedded map (prototype)",
-            subtitle = "Evaluation build of the MapLibre preview. The navigation " +
-                "hand-off stays the default.",
-            checked = settings.embeddedMapEnabled,
-            onCheckedChange = callbacks.setEmbeddedMapEnabled,
-        )
-        if (settings.embeddedMapEnabled) {
-            Spacer(Modifier.height(AutoVerseSpacing.xs))
-            TextAction(text = "Open map preview", onClick = callbacks.openMapPreview)
         }
     }
 }
@@ -1188,7 +1202,7 @@ private fun NotificationAccessBlock(
 }
 
 @Composable
-private fun AboutSettings() {
+private fun AboutSettings(onReplayOnboarding: () -> Unit) {
     val colors = LocalAutoVerseColors.current
     WidgetContainer(
         title = "SAFETY",
@@ -1211,7 +1225,12 @@ private fun AboutSettings() {
         Spacer(Modifier.height(AutoVerseSpacing.sm))
         KeyValueRow("Version", "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
         KeyValueRow("Build", if (BuildConfig.DEBUG) "Debug" else "Release")
-        KeyValueRow("Stage", "Phase 16 \u2014 settings")
+        KeyValueRow("Stage", "Tier 1 — onboarding, driving mode, premium themes")
+        Spacer(Modifier.height(AutoVerseSpacing.xs))
+        TextAction(
+            text = "Run first-time setup again",
+            onClick = onReplayOnboarding,
+        )
     }
 
     WidgetContainer(
@@ -1221,10 +1240,10 @@ private fun AboutSettings() {
     ) {
         Text(
             text = "Kotlin, AndroidX, Jetpack Compose, Okio, OkHttp, Gson, " +
-                "and Timber ship under Apache-2.0. The MapLibre map stack " +
-                "(MapLibre Native, Turf, GeoJSON, gestures) ships under " +
-                "BSD-2-Clause. desugar_jdk_libs ships under GPL-2.0 with the " +
-                "Classpath exception. JUnit (test-only, not in the APK) is EPL-1.0.",
+                "and Timber ship under Apache-2.0. Leaflet (cockpit map) " +
+                "ships under BSD-2-Clause. desugar_jdk_libs ships under " +
+                "GPL-2.0 with the Classpath exception. JUnit (test-only, " +
+                "not in the APK) is EPL-1.0.",
             style = MaterialTheme.typography.bodyMedium,
             color = colors.textSecondary,
         )
@@ -1331,6 +1350,13 @@ private fun themeDescription(theme: AutoVerseThemeId): String = when (theme) {
     AutoVerseThemeId.NEON_PULSE -> "Midnight blue with electric cyan accents"
     AutoVerseThemeId.ATELIER -> "Warm neutrals and quiet, calm surfaces"
     AutoVerseThemeId.APEX -> "Motorsport reds with stronger hierarchy"
+    AutoVerseThemeId.SAKURA -> "Anime day-vibe: blush plum and cherry petals"
+    AutoVerseThemeId.NEON_TOKYO -> "Anime night: midnight city with electric cyan"
+    AutoVerseThemeId.SHONEN -> "Anime hero: ink indigo, plus-ultra energy"
+    AutoVerseThemeId.GOTHAM -> "Vigilante stealth: true black, bat-signal yellow"
+    AutoVerseThemeId.HOT_ROD -> "Armored hero: warm gunmetal and arc red"
+    AutoVerseThemeId.FORTRESS -> "Bright citadel: warm white and sky blue"
+    AutoVerseThemeId.WEB_RUSH -> "Urban sport: racing red and electric blue"
 }
 
 private fun appearanceDescription(mode: AppearanceMode): String = when (mode) {

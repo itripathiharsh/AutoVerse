@@ -40,7 +40,7 @@ fontScale)` (thresholds and rules in
 | Storage | `storageAvailableMb` — `StatFs` on the data partition |
 | Sample history | `FrameSampleHistory` — 60-sample FIFO, one 1-second window per sample |
 | System information | `DeviceProfile` (manufacturer, model, release, API level, RAM, cores, density, dp size, tier) |
-| App components | six tiles from the `ComponentHealth` builders over already-observed state (app drawer, media session, navigation handoff, settings store, frame tracking, embedded map) |
+| App components | five tiles from the `ComponentHealth` builders over already-observed state (app drawer, media session, navigation handoff, settings store, frame tracking) |
 | Recent logs | `DiagnosticLog.entries`, newest first |
 
 ## Honesty rules
@@ -56,9 +56,8 @@ fontScale)` (thresholds and rules in
 - Component tiles show real statuses, including LOADING ("Reading
   installed apps…" / "Reading media session state…") and NOT_CHECKED
   ("Checked during startup.") — not fabricated "OK" rows.
-- The embedded map tile reports DISABLED with "Off by default; the
-  preview is an experimental prototype." (it stays off — the Phase 7
-  decision).
+- The former embedded-map tile was removed with the MapLibre prototype
+  in 0.20.0; the panel now shows five components.
 - "Refresh All" re-scans installed apps, re-reads the media session and
   takes one fresh resource sample; it logs "Manual refresh requested"
   and then "Refresh complete" (or WARN "Refresh finished with errors")

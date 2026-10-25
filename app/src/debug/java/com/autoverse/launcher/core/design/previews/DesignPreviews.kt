@@ -1225,7 +1225,6 @@ private fun NavigationPagePreview(
             ),
             savedPlaces = savedPlaces,
             recentDestinations = recentDestinations,
-            embeddedMapEnabled = false,
             query = query,
             onQueryChange = {},
             placesPanelVisible = placesPanelVisible,

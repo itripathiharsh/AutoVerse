@@ -62,16 +62,17 @@ import com.autoverse.launcher.feature.apps.AppDrawerScreen
 import com.autoverse.launcher.feature.apps.AppDrawerView
 import com.autoverse.launcher.feature.diagnostics.DiagnosticsScreen
 import com.autoverse.launcher.feature.home.DashboardData
+import com.autoverse.launcher.feature.cockpit.CockpitScreen
 import com.autoverse.launcher.feature.home.HomeScreen
 import com.autoverse.launcher.feature.home.HomeScreenContent
-import com.autoverse.launcher.feature.map.MapPocScreen
 import com.autoverse.launcher.feature.navigation.NavigationScreen
+import com.autoverse.launcher.feature.onboarding.OnboardingScreen
 import com.autoverse.launcher.feature.settings.SettingsCategory
 import com.autoverse.launcher.feature.settings.SettingsScreen
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 
-enum class Screen { HOME, NAVIGATION, APP_DRAWER, SETTINGS, DIAGNOSTICS, MAP_POC }
+enum class Screen { COCKPIT, HOME, NAVIGATION, APP_DRAWER, SETTINGS, DIAGNOSTICS }
 
 @Composable
 fun AppRoot(viewModel: MainViewModel = viewModel()) {
@@ -95,7 +96,7 @@ fun AppRoot(viewModel: MainViewModel = viewModel()) {
     val diagnosticsRefreshing by viewModel.diagnosticsRefreshing.collectAsStateWithLifecycle()
     val settingsStoreReadable by viewModel.settingsStoreReadable.collectAsStateWithLifecycle()
 
-    var screen by remember { mutableStateOf(Screen.HOME) }
+    var screen by remember { mutableStateOf(Screen.COCKPIT) }
     var drawerQuery by rememberSaveable { mutableStateOf("") }
     var drawerView by rememberSaveable { mutableStateOf(AppDrawerView.GRID) }
     var drawerCategory by rememberSaveable { mutableStateOf(AppCategory.ALL) }
@@ -109,6 +110,14 @@ fun AppRoot(viewModel: MainViewModel = viewModel()) {
 
     var notificationAccessGranted by remember {
         mutableStateOf(isNotificationAccessEnabled(context))
+    }
+    var locationGranted by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
+                PackageManager.PERMISSION_GRANTED ||
+                ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) ==
+                PackageManager.PERMISSION_GRANTED,
+        )
     }
 
     val accessItems = remember(notificationAccessGranted) {
@@ -158,6 +167,11 @@ fun AppRoot(viewModel: MainViewModel = viewModel()) {
                 // pick up notification-access changes made in system settings.
                 val granted = isNotificationAccessEnabled(context)
                 notificationAccessGranted = granted
+                locationGranted =
+                    ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
+                        PackageManager.PERMISSION_GRANTED ||
+                        ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) ==
+                        PackageManager.PERMISSION_GRANTED
                 // The log records only transitions; repeated resumes with an
                 // unchanged state stay silent.
                 viewModel.noteNotificationAccess(granted)
@@ -196,9 +210,24 @@ fun AppRoot(viewModel: MainViewModel = viewModel()) {
             ),
         ) {
             val motion = LocalAutoVerseMotion.current
-            BackHandler(enabled = screen != Screen.HOME) { screen = Screen.HOME }
+            BackHandler(enabled = screen != Screen.COCKPIT) { screen = Screen.COCKPIT }
 
-            AnimatedContent(
+            if (!settings.onboardingComplete) {
+                OnboardingScreen(
+                    selectedTheme = settings.themeId,
+                    onSelectTheme = { viewModel.setTheme(it) },
+                    premiumUnlocked = settings.premiumUnlocked,
+                    onUnlockPremium = { viewModel.setPremiumUnlocked(true) },
+                    mediaAccessGranted = notificationAccessGranted,
+                    onOpenMediaAccess = {
+                        openNotificationAccessSettings(context)
+                        notificationAccessGranted = isNotificationAccessEnabled(context)
+                    },
+                    locationGranted = locationGranted,
+                    onGetStarted = { viewModel.setOnboardingComplete(true) },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else AnimatedContent(
                 targetState = screen,
                 transitionSpec = {
                     when (performanceSpec.screenTransitions) {
@@ -216,6 +245,13 @@ fun AppRoot(viewModel: MainViewModel = viewModel()) {
                 label = "screenTransition",
             ) { target ->
                 when (target) {
+                    Screen.COCKPIT -> {
+                        CockpitScreen(
+                            viewModel = viewModel,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+
                     Screen.HOME -> {
                         val dashboard = rememberDashboardData(
                             viewModel = viewModel,
@@ -261,7 +297,6 @@ fun AppRoot(viewModel: MainViewModel = viewModel()) {
                             resolved = pageResolved,
                             savedPlaces = savedPlaces,
                             recentDestinations = recentDestinations,
-                            embeddedMapEnabled = settings.embeddedMapEnabled,
                             query = navQuery,
                             onQueryChange = { navQuery = it },
                             placesPanelVisible = navPlacesPanelVisible,
@@ -324,6 +359,9 @@ fun AppRoot(viewModel: MainViewModel = viewModel()) {
                             settings = settings,
                             initialCategory = settingsCategory,
                             onSetTheme = viewModel::setTheme,
+                            onSetPremiumUnlocked = viewModel::setPremiumUnlocked,
+                            onSetThemeSoundsEnabled = viewModel::setThemeSoundsEnabled,
+                            onReplayOnboarding = { viewModel.setOnboardingComplete(false) },
                             onSetAppearanceMode = viewModel::setAppearanceMode,
                             onSetReducedMotion = viewModel::setReducedMotion,
                             onSetTextScale = viewModel::setTextScale,
@@ -333,8 +371,6 @@ fun AppRoot(viewModel: MainViewModel = viewModel()) {
                             onBack = { screen = Screen.HOME },
                             navigationProviders = navigationProviders,
                             onSetNavigationPackage = viewModel::setNavigationPackage,
-                            onSetEmbeddedMapEnabled = viewModel::setEmbeddedMapEnabled,
-                            onOpenMapPreview = { screen = Screen.MAP_POC },
                             notificationAccessGranted = notificationAccessGranted,
                             onOpenNotificationAccessSettings = {
                                 openNotificationAccessSettings(context)
@@ -364,18 +400,6 @@ fun AppRoot(viewModel: MainViewModel = viewModel()) {
                             },
                             onResetSettings = viewModel::resetSettings,
                         )
-                    }
-
-                    Screen.MAP_POC -> {
-                        if (settings.embeddedMapEnabled) {
-                            MapPocScreen(
-                                providerLabel = navigationProvider.provider.label,
-                                onOpenNavigationApp = viewModel::openNavigationApp,
-                                onBack = { screen = Screen.SETTINGS },
-                            )
-                        } else {
-                            LaunchedEffect(Unit) { screen = Screen.SETTINGS }
-                        }
                     }
 
                     Screen.DIAGNOSTICS -> {

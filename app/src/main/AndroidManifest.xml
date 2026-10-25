@@ -3,22 +3,15 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <!--
-        Phase 7 prototype (feature-flagged, default off): the embedded-map
-        proof of concept fetches its style document and vector tiles over
-        HTTPS. The launcher itself and the navigation hand-off work fully
-        offline; remove this permission together with the map prototype if
-        the ship decision says no. ACCESS_WIFI_STATE is merged in by the
-        MapLibre dependency for its internal download management and is
-        deliberately kept while the prototype exists; it is an install-time
-        permission with no runtime prompt.
+        Cockpit WebView only: Leaflet map tiles, Nominatim geocoding, and
+        http(s) artwork URLs from media sessions. The launcher itself and the
+        navigation hand-off work fully offline.
     -->
     <uses-permission android:name="android.permission.INTERNET" />
 
     <!--
-        Dashboard status indicators (Phase 14): reading the active network
-        transport needs ACCESS_NETWORK_STATE declared explicitly instead of
-        relying on the MapLibre merge, because the indicators ship
-        independently of the map prototype. Install-time, no prompt.
+        Dashboard status indicators: reading the active network transport.
+        Install-time, no prompt.
     -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
@@ -34,17 +27,28 @@
         android:maxSdkVersion="30" />
 
     <!--
-        Phase 10 audit: MapLibre declares location permissions for its
-        optional user-location puck, which this prototype never uses (no
-        location API is called anywhere in the app). Removed at merge time
-        so the shipped manifest declares no location access at all.
+        Tier 2 (OBD): talking to a bonded ELM327 adapter over RFCOMM needs
+        BLUETOOTH_CONNECT on API 31+. Runtime-requested only when the user
+        taps "Connect adapter"; never used for scanning or discovery.
     -->
-    <uses-permission
-        android:name="android.permission.ACCESS_FINE_LOCATION"
-        tools:node="remove" />
-    <uses-permission
-        android:name="android.permission.ACCESS_COARSE_LOCATION"
-        tools:node="remove" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+
+    <!--
+        Tier 2 (offline voice): on-device wake-word recognition runs only
+        while the app is foregrounded and only after the user opts in from
+        Settings. Audio never leaves the device (Vosk is fully local).
+    -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!--
+        Cockpit live GPS only (map position, recenter, speed readout). The
+        WebView geolocation prompt is granted for the cockpit origin, and
+        MainActivity requests the runtime grant on first launch. No other
+        surface reads location; navigation hand-off never receives
+        coordinates it did not get from the user's typed destination.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <!--
         Package visibility (API 30+): the app drawer queries launcher-intent
@@ -113,11 +117,20 @@
         </intent>
         <package android:name="com.google.android.apps.maps" />
         <package android:name="com.waze" />
+
+        <!--
+            Onboarding (Tier 1): resolves the device speech service so the
+            voice-assistant row shows real availability instead of a guess.
+        -->
+        <intent>
+            <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
+        </intent>
     </queries>
 
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.AutoVerse">

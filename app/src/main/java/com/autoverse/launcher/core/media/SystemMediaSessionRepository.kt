@@ -176,6 +176,23 @@ class SystemMediaSessionRepository(context: Context) : MediaSessionRepository {
             }
         }
 
+    override suspend fun seekTo(positionMs: Long): MediaCommandOutcome =
+        withContext(Dispatchers.IO) {
+            if (!isNotificationAccessEnabled(appContext)) {
+                return@withContext MediaCommandOutcome.ACCESS_LOST
+            }
+            val controller = synchronized(controllerLock) { activeController }
+                ?: return@withContext MediaCommandOutcome.FAILED
+            try {
+                controller.transportControls.seekTo(positionMs.coerceAtLeast(0L))
+                MediaCommandOutcome.SENT
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (failure: Exception) {
+                classifyMediaCommandFailure(failure)
+            }
+        }
+
     override suspend fun loadArtwork(uri: String, targetMaxPx: Int): ImageBitmap? =
         artworkCache.load(uri, targetMaxPx)
 
@@ -247,6 +264,7 @@ class SystemMediaSessionRepository(context: Context) : MediaSessionRepository {
     private fun artworkBitmapOf(metadata: MediaMetadata): ImageBitmap? = try {
         val bitmap: Bitmap? = metadata.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
             ?: metadata.getBitmap(MediaMetadata.METADATA_KEY_ART)
+            ?: metadata.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
         bitmap?.asImageBitmap()
     } catch (_: Exception) {
         null

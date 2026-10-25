@@ -84,7 +84,6 @@ import com.autoverse.launcher.core.diagnostics.PermissionsSummary
 import com.autoverse.launcher.core.diagnostics.SystemSnapshot
 import com.autoverse.launcher.core.diagnostics.appDrawerHealth
 import com.autoverse.launcher.core.diagnostics.appHealthFor
-import com.autoverse.launcher.core.diagnostics.embeddedMapHealth
 import com.autoverse.launcher.core.diagnostics.frameTrackingHealth
 import com.autoverse.launcher.core.diagnostics.mediaSessionHealth
 import com.autoverse.launcher.core.diagnostics.navigationHandoffHealth
@@ -284,7 +283,6 @@ fun DiagnosticsScreen(
                                             appListState = appListState,
                                             settingsStoreReadable = settingsStoreReadable,
                                             frameTrackingActive = frameTrackingActive,
-                                            embeddedMapEnabled = settings.embeddedMapEnabled,
                                             notificationAccessGranted = notificationAccessGranted,
                                         )
                                         LogsPanel(
@@ -344,7 +342,6 @@ fun DiagnosticsScreen(
                                 appListState = appListState,
                                 settingsStoreReadable = settingsStoreReadable,
                                 frameTrackingActive = frameTrackingActive,
-                                embeddedMapEnabled = settings.embeddedMapEnabled,
                                 notificationAccessGranted = notificationAccessGranted,
                             )
                             LogsPanel(
@@ -782,7 +779,6 @@ private fun ComponentsPanel(
     appListState: AppListState,
     settingsStoreReadable: Boolean?,
     frameTrackingActive: Boolean,
-    embeddedMapEnabled: Boolean,
     notificationAccessGranted: Boolean,
     modifier: Modifier = Modifier,
 ) {
@@ -797,7 +793,6 @@ private fun ComponentsPanel(
         appDrawerHealth(appListState),
         settingsStoreHealth(settingsStoreReadable),
         frameTrackingHealth(frameTrackingActive),
-        embeddedMapHealth(embeddedMapEnabled),
     )
     WidgetContainer(
         title = "App components",

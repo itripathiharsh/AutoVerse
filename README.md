@@ -8,59 +8,66 @@
 
 <h1 align="center">AutoVerse</h1>
 
-<p align="center">A premium adaptive launcher and dashboard for standalone Android head units.</p>
+<p align="center">A premium adaptive launcher and cockpit dashboard for standalone Android head units and phones.</p>
 
 <p align="center">
   <a href="releases"><img src="https://img.shields.io/badge/platform-Android%206.0%2B%20%28API%2023%29-3DDC84?logo=android&logoColor=white" alt="Platform: Android 6.0+ (API 23)"></a>
-  <img src="https://img.shields.io/badge/release-0.18.0--phase18-orange" alt="Release 0.18.0-phase18">
+  <img src="https://img.shields.io/badge/release-0.25.0--theme--engine-orange" alt="Release 0.25.0-theme-engine">
   <img src="https://img.shields.io/badge/Kotlin-2.0.21-7F52FF?logo=kotlin&logoColor=white" alt="Kotlin 2.0.21">
   <img src="https://img.shields.io/badge/Jetpack%20Compose-BOM%202024.10.01-4285F4?logo=jetpackcompose&logoColor=white" alt="Jetpack Compose BOM 2024.10.01">
-  <img src="https://img.shields.io/badge/unit%20tests-401%20passing-brightgreen" alt="401 unit tests passing">
-  <img src="https://img.shields.io/badge/lint-0%20errors-yellowgreen" alt="Lint: 0 errors">
+  <img src="https://img.shields.io/badge/unit%20tests-417%20passing-brightgreen" alt="417 unit tests passing">
+  <img src="https://img.shields.io/badge/themes-12%20%287%20premium%29-8B5CF6" alt="12 themes, 7 premium">
 </p>
 
 ---
 
 ## Overview
 
-AutoVerse replaces the stock home screen on an Android head unit with an adaptive, glanceable dashboard: live media, navigation hand-off, apps, and system status in one driving-safe surface. It is built entirely with Kotlin and Jetpack Compose, reshapes itself to the screen it lands on (and the performance tier it runs on), and behaves honestly — every surface tells you what is actually happening instead of faking data.
+AutoVerse replaces the stock home screen with an adaptive, glanceable cockpit: live media, navigation hand-off, apps, engine data, voice, and system status in one driving-safe surface. It is built with Kotlin and Jetpack Compose around a hardware-accelerated WebView cockpit for the dashboard, reshapes itself to the screen it lands on and the performance tier it runs on, and behaves honestly — every surface tells you what is actually happening instead of faking data. The whole thing ships as a **single ~8 MB APK** with no accounts, no backend, and no paid services.
 
 ## Features
 
-**Adaptive by design**
+**Cockpit dashboard**
 
-- `COMPACT` / `MEDIUM` / `WIDE` layout archetypes driven by window size, height, and font scale, with cutout and inset handling.
-- Performance profiles (Constrained / Balanced / Enhanced) that change real runtime behaviour — animation budgets, layout density, effect levels — not just cosmetics.
-- Five built-in themes on a full design-token system: color, type, spacing, motion, and shape tokens shared by every screen.
+- Hardware-accelerated dashboard surface: live map, real media-session playback with artwork and working seek, driving-mode workload controls, favourites, and a status bar with Bluetooth / Wi-Fi / island notifications.
+- Everything visual is rendered in code — CSS gradients, SVG silhouettes, code-built theme previews — **zero bundled image assets** in the UI.
+- **Driving mode** engages automatically from live GPS speed (enter above 8 km/h, exit after 30 s calm): bigger touch targets, decorative animation stops, a Driving indicator. Never blocks function.
+- **Performance tiering**: the app's Constrained / Balanced / Enhanced workload profiles re-tier the cockpit live — the Constrained profile drops the GPU-heavy blur and ambient effects, measuring 20–40% faster interactions on weak-hardware simulation.
 
-**Dashboard**
+**Dynamic theme engine**
 
-- Media card bound to the device's real media sessions — artwork, transport controls, progress — and it degrades with honest copy when a source reports nothing.
-- Navigation card: a validated destination hand-off to Google Maps, Waze, or any installed geo app, with strict URI encoding and truthful failure messages.
-- Clock/status bar with network and Bluetooth indicators.
+- **12 themes, 7 premium**: Cobalt (flagship), Obsidian, Neon Pulse, Atelier, Apex, Sakura, Neon Tokyo, Shonen, Gotham, Hot Rod, Fortress, Web Rush — each a complete visual identity (palette pair, cockpit backdrop, icon language), not a color filter.
+- **Dynamic icon engine**: the same logical icon renders in the active theme's container language — angular shields, reactor rings, hexagonal neon, sport angular, precision squares — while real installed-app artwork is masked, never replaced. Selected states are structural (edge / ring / indicator), never color-only.
+- Themes switch instantly without a restart, persist across boots, and premium themes unlock through a local entitlement (early-access builds include everything free).
 
-**Navigation page**
+**Voice assistant**
 
-- Map-dominant layout with a collapsible Recents / Saved Places panel; the map surface is never recreated when the panels around it move.
-- Local search with real suggestions drawn from your saved places and recent hand-offs — no geocoding calls, no fabricated results.
-- Saved places and recents stay on-device, and a hand-off is only recorded once it is confirmed.
-- An optional embedded MapLibre map surface exists behind a flag that is **off by default**; see [docs/map-poc.md](docs/map-poc.md) for the evaluation and ship recommendation.
+- Tap-to-talk through the platform speech recognizer: "open Spotify", "navigate to India Gate", play / pause / next.
+- **Offline wake word** (opt-in): say "Hey AutoVerse" with zero connectivity — Vosk recognition runs fully on-device; the ~40 MB voice model downloads once on first enable.
 
-**App drawer**
+**Live engine data (OBD2)**
 
-- Category-classified app list with favorites. Package visibility is scoped to launcher activities through a minimal `<queries>` block — no `QUERY_ALL_PACKAGES`.
-- Launch reporting that tells the truth when an app fails to open.
+- Pair any ELM327 Bluetooth adapter and the cockpit shows real RPM, speed, coolant, and fuel level. Unsupported sensors render an em dash — never a fabricated number.
 
-**Diagnostics & settings**
+**Offline maps**
 
-- Diagnostics: live frame-rate, CPU, memory, and storage readings, component health, and a bounded recent-log list.
-- Settings: schema-validated, with per-category reset and full recovery paths.
+- Map tiles you have viewed are mirrored on-device, so recent areas render without connectivity; a truthful offline banner and a real cache-clear control back it up.
+
+**Navigation**
+
+- Validated destination hand-off to Google Maps, Waze, OsmAnd, or any installed geo app, with strict URI encoding, saved places, recents, and truthful failure messages.
+
+**Launcher**
+
+- Category-classified app drawer (declared categories + intent probes + keyword fallback) with favorites and honest launch-failure reporting. Scoped `<queries>` — no `QUERY_ALL_PACKAGES`.
+- First-run onboarding: theme pick, launcher chooser, media access, location, and voice-service checks.
+- Diagnostics with live readings and component health; settings with schema validation, reset, and recovery paths.
 
 ## Download
 
 Grab the latest signed, R8-minified release APK from the [`releases/`](releases) folder:
 
-**[Download AutoVerse 0.18.0-phase18](https://github.com/itripathiharsh/AutoVerse/raw/main/releases/AutoVerse-0.18.0-phase18-release.apk)** — SHA-256 in [`releases/SHA256SUMS.txt`](releases/SHA256SUMS.txt)
+**[Download AutoVerse 0.25.0-theme-engine](https://github.com/itripathiharsh/AutoVerse/raw/main/releases/AutoVerse-0.25.0-theme-engine-release.apk)** — SHA-256 in [`releases/SHA256SUMS.txt`](releases/SHA256SUMS.txt)
 
 ### Install
 
@@ -68,9 +75,10 @@ AutoVerse is a home-screen replacement and registers the `HOME` intent. It needs
 
 1. Copy the APK to the device, or sideload it:
    ```powershell
-   adb install AutoVerse-0.18.0-phase18-release.apk
+   adb install AutoVerse-0.25.0-theme-engine-release.apk
    ```
 2. Open **Settings → Apps → Default apps → Home app** and select AutoVerse (or press Home and pick it).
+3. The first launch walks you through theme, media-access, location, and voice setup.
 
 ## Build from source
 
@@ -86,12 +94,12 @@ AutoVerse is a home-screen replacement and registers the `HOME` intent. It needs
 
 Output: `app/build/outputs/apk/debug/app-debug.apk`.
 
-Release builds are signed when a `keystore.properties` file exists at the repo root, or when the `AUTOVERSE_RELEASE_STORE_FILE`, `AUTOVERSE_RELEASE_STORE_PASSWORD`, `AUTOVERSE_RELEASE_KEY_ALIAS`, and `AUTOVERSE_RELEASE_KEY_PASSWORD` environment variables are set (see [`app/build.gradle.kts`](app/build.gradle.kts)).
+Release builds are signed when a `keystore.properties` file exists at the repo root, or when the `AUTOVERSE_RELEASE_STORE_FILE`, `AUTOVERSE_RELEASE_STORE_PASSWORD`, `AUTOVERSE_RELEASE_KEY_ALIAS`, and `AUTOVERSE_RELEASE_KEY_PASSWORD` environment variables are set (see [`app/build.gradle.kts`](app/build.gradle.kts)). The offline voice model downloads on first use from the Vosk project's own hosting — nothing is bundled or fetched at build time.
 
 ## Testing
 
 ```powershell
-.\gradlew.bat :app:testDebugUnitTest      # 401 JVM unit tests
+.\gradlew.bat :app:testDebugUnitTest      # 417 JVM unit tests
 .\gradlew.bat :app:lintDebug              # Android lint
 .\gradlew.bat :app:connectedDebugAndroidTest  # Compose UI tests (needs a device or emulator)
 ```
@@ -101,9 +109,11 @@ Release builds are signed when a `keystore.properties` file exists at the repo r
 ```
 app/
 ├─ src/main/java/com/autoverse/launcher/
-│  ├─ core/        design tokens, app catalog, media, navigation, performance, diagnostics, preferences
-│  └─ feature/     home dashboard, app drawer, navigation, map prototype, settings, diagnostics
-├─ src/test/       401 JVM unit tests
+│  ├─ core/        design tokens + theme/icon engine, app catalog, media, navigation,
+│  │               OBD2 (core/obd), offline voice (core/voice), sounds, bridge, diagnostics, preferences
+│  └─ feature/     cockpit (WebView dashboard), home, app drawer, navigation, onboarding, settings, diagnostics
+├─ src/main/assets/cockpit/   the dashboard UI (HTML/CSS/JS + Leaflet), shipped in the APK
+├─ src/test/       417 JVM unit tests
 └─ src/androidTest/ Compose UI tests (device required)
 docs/              engineering documentation (see below)
 releases/          verified release artifacts (APK + SHA-256)
@@ -117,7 +127,7 @@ releases/          verified release artifacts (APK + SHA-256)
 | [design-system.md](docs/design-system.md) | Visual language: tokens for color, type, spacing, motion, shapes |
 | [diagnostics.md](docs/diagnostics.md) | Diagnostics page design and live readings |
 | [launcher-setup.md](docs/launcher-setup.md) | App discovery, launch, favorites, drawer behavior |
-| [map-poc.md](docs/map-poc.md) | Embedded MapLibre map prototype: evaluation and recommendation |
+| [map-poc.md](docs/map-poc.md) | Former embedded map prototype: evaluation history and 0.20.0 removal record |
 | [media-integration.md](docs/media-integration.md) | Media-session binding and now-playing behavior |
 | [navigation-handoff.md](docs/navigation-handoff.md) | Destination hand-off architecture and the navigation page |
 | [performance-profiles.md](docs/performance-profiles.md) | Constrained / Balanced / Enhanced and their runtime effects |
@@ -126,21 +136,23 @@ releases/          verified release artifacts (APK + SHA-256)
 | [resilience-and-release-audit.md](docs/resilience-and-release-audit.md) | Persistence, lifecycle, and optional-feature audit |
 | [safety-accessibility-audit.md](docs/safety-accessibility-audit.md) | Driving-safety and accessibility review |
 | [settings.md](docs/settings.md) | Settings page design and preference schema |
-| [third-party-licenses.md](docs/third-party-licenses.md) | Third-party notices (MapLibre, AndroidX, Kotlin) |
+| [theme-system.md](docs/theme-system.md) | Dynamic theme system: identities, icon engine, gallery plan |
+| [tier2-obd-offline.md](docs/tier2-obd-offline.md) | OBD2 engine data, offline maps, offline wake-word voice |
+| [third-party-licenses.md](docs/third-party-licenses.md) | Third-party notices (AndroidX, Kotlin, Leaflet, Vosk) |
 
 ## Permissions & privacy
 
-- **No location access.** MapLibre's merged location permissions are explicitly removed at manifest-merge time, and nothing in the app calls a location API.
+- **Location is cockpit-only.** The cockpit's live GPS (map position, recenter, speed readout) is the only location use; it is runtime-granted, foreground-only, and never stored or transmitted. The navigation hand-off never calls a location API.
+- **Microphone is opt-in.** `RECORD_AUDIO` is requested only if you enable offline voice; recognition runs on-device (Vosk) and audio never leaves the phone. Tap-to-talk uses the system recognizer instead — no permission needed.
+- **Bluetooth** is used to talk to a bonded ELM327 adapter you explicitly connect (`BLUETOOTH_CONNECT`, requested on Connect; legacy `BLUETOOTH` ≤ Android 11 is install-time). No scanning.
 - **No `QUERY_ALL_PACKAGES`.** App visibility is scoped to launcher activities via a minimal `<queries>` block.
 - **No telemetry, accounts, or backend.** Favorites, saved places, recents, and settings live on-device in DataStore.
 - The media integration binds a notification-listener service *solely* because Android gates media-session access behind that binding — notifications are never read, stored, or forwarded.
-- `INTERNET` is declared only for the optional embedded-map prototype (off by default). The launcher and navigation hand-off work fully offline.
+- `INTERNET` is used only by the cockpit (map tiles, geocoding, media artwork URLs) and the one-time offline-voice model download. The launcher and navigation hand-off work fully offline.
 
 ## Status
 
-Current release: **0.18.0-phase18** (release candidate) — 401 unit tests passing, 0 lint errors (33 documented dependency-version warnings), signed and R8-minified APK in [`releases/`](releases).
-
-Behaviour on real hardware has not been validated yet — treat on-device behaviour as unverified until a device pass is done. Planned work includes device validation, screenshots, and layout polish for real head-unit screens.
+Current release: **0.25.0-theme-engine** — 417 unit tests passing, signed and R8-minified (~8.2 MB universal APK). The cockpit UI is verified across head-unit and phone viewports with CPU-throttled performance profiling; behaviour on real head-unit hardware (wake word, ELM327 session, GPU headroom) is **unverified until a device pass is done**. Known open work: theme gallery screen for the Compose side, wallpaper picker, and accent variants (see [`docs/theme-system.md`](docs/theme-system.md)).
 
 ## Contributing
 

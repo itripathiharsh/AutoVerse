@@ -80,8 +80,6 @@ class SettingsScreenTest {
                         onBack = {},
                         navigationProviders = navigationProviders,
                         onSetNavigationPackage = onSetNavigationPackage,
-                        onSetEmbeddedMapEnabled = {},
-                        onOpenMapPreview = {},
                         notificationAccessGranted = notificationAccessGranted,
                         onOpenNotificationAccessSettings = onOpenNotificationAccessSettings,
                         favoriteApps = favoriteApps,

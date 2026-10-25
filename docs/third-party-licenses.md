@@ -27,13 +27,8 @@ changed in Phase 12, so the table below stands as verified.
 | `androidx.compose.material:material-icons-extended` (+ `material-icons-core`, `material-ripple`) | 1.7.5 | Apache-2.0 |
 | `androidx.datastore:datastore(-preferences)(-core)(-okio)` | 1.1.1 | Apache-2.0 |
 | `com.squareup.okio:okio(-jvm)` | 3.6.0 (transitive of DataStore) | Apache-2.0 |
-| `org.maplibre.gl:android-sdk` | 11.13.5 | BSD-2-Clause |
-| `org.maplibre.gl:android-sdk-turf` | 6.0.1 | BSD-2-Clause |
-| `org.maplibre.gl:android-sdk-geojson` | 6.0.1 | BSD-2-Clause |
-| `org.maplibre.gl:maplibre-android-gestures` | 0.0.4 | BSD-2-Clause |
-| `com.squareup.okhttp3:okhttp` | 4.12.0 (transitive of MapLibre) | Apache-2.0 |
-| `com.google.code.gson:gson` | 2.10.1 (transitive of MapLibre) | Apache-2.0 |
-| `com.jakewharton.timber:timber` | 5.0.1 (transitive of MapLibre) | Apache-2.0 |
+| `org.maplibre.gl:*` (native map stack) | — | **Removed in 0.20.0** with the flag-off map prototype; see `docs/map-poc.md` |
+| Leaflet 1.9.4 (bundled cockpit WebView asset: `leaflet.js`, `leaflet.css`) | 1.9.4 | BSD-2-Clause |
 | `com.android.tools:desugar_jdk_libs` | 2.1.2 | GPL-2.0 WITH Classpath-exception-2.0 |
 
 Remaining resolved AndroidX transitives (`collection`, `annotation`,
@@ -62,9 +57,9 @@ against each artifact's documented purpose above.
 - **Apache-2.0** (majority): include the license text; retain copyright and
   NOTICE files where the library ships one. Handled by bundling a
   consolidated open-source notices screen/file at packaging time.
-- **BSD-2-Clause** (MapLibre family): retain the copyright notice and
-  disclaimer in binary distributions. MapLibre's license text must ship with
-  the APK's notices.
+- **BSD-2-Clause** (Leaflet, bundled in the cockpit WebView assets):
+  retain the copyright notice and disclaimer; Leaflet's license text ships
+  in the source tree beside the bundled files.
 - **GPL-2.0 WITH Classpath-exception-2.0** (`desugar_jdk_libs`): no source
   disclosure obligation for the app (classpath exception); ship the license
   text with notices.
@@ -75,22 +70,18 @@ as checklist item 8 in `docs/release.md` (which now exists); the licenses
 and obligations above stand as verified (Phase 11), and the shipped
 dependency set was unchanged in Phase 12.
 
-## Map data, tiles and attribution
+## Map data, tiles and attribution (0.20.0 state)
 
-- The embedded map is an **experimental prototype, off by default**, loaded
-  with MapLibre's public demo style/tiles. The demo tile service is for
-  development only: it must not be treated as a production tile source, and
-  it carries no availability or data-licensing guarantee.
-- MapLibre Native itself renders the tiles; MapLibre attribution requirements
-  (visible attribution control) must be satisfied by any production map view.
-- For production use, a tile/data provider with explicit licensing must be
-  selected (e.g. a commercial vector-tile provider, or self-hosted
-  OpenMapTiles with OpenStreetMap data). OpenStreetMap-derived data requires
-  "© OpenStreetMap contributors" attribution under ODbL, and each style has
-  its own license. This decision is deliberately deferred and gated behind
-  the experimental flag; the in-app text already states "Map data: MapLibre
-  demo tiles. Prototype only — production needs a licensed tile provider."
-- Because the prototype is off by default, no map requests or attribution
-  claims reach users in the default configuration. The navigation
-  **hand-off** (launching an installed maps app) requires no map data,
-  license, or network access from AutoVerse.
+- The native embedded-map prototype (MapLibre) was **removed in 0.20.0**
+  together with its flag and dependency (see `docs/map-poc.md`). The
+  Compose launcher renders no map of its own; the navigation **hand-off**
+  (launching an installed maps app) requires no map data, license, or
+  network access from AutoVerse.
+- The cockpit WebView (in-app dashboard UI) embeds **Leaflet 1.9.4** and
+  fetches raster map tiles and Nominatim geocoding over HTTPS when the
+  cockpit is used with location granted. Tile-provider licensing and
+  attribution for that cockpit map is an open pre-production item: before
+  distribution, the tile source must be confirmed as licensed for this use
+  (the current raster tiles are not a contracted production provider), and
+  "© OpenStreetMap contributors" attribution must be visible wherever
+  OSM-derived data is shown.

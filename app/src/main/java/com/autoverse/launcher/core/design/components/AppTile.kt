@@ -59,25 +59,12 @@ fun AppTile(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(AutoVerseSpacing.xs),
             ) {
-                Box(
-                    modifier = Modifier.size(AutoVerseSpacing.touchMin),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    if (icon != null) {
-                        Image(
-                            bitmap = icon,
-                            contentDescription = null,
-                            modifier = Modifier.fillMaxSize(),
-                        )
-                    } else {
-                        Icon(
-                            imageVector = Icons.Outlined.Apps,
-                            contentDescription = null,
-                            modifier = Modifier.size(AutoVerseIcons.prominent),
-                            tint = colors.textFaint,
-                        )
-                    }
-                }
+                ThemedAppIcon(
+                    bitmap = icon,
+                    fallback = Icons.Outlined.Apps,
+                    size = AutoVerseSpacing.touchMin,
+                    contentDescription = null,
+                )
                 Text(
                     text = label,
                     style = MaterialTheme.typography.titleMedium,

@@ -12,3 +12,15 @@ keystore/*.jks
 *.keystore
 *.jks
 keystore.properties
+
+# internal workspace files (not part of the public repo)
+stitch-fe/
+/AutoVerse.apk
+gradle_run.bat
+*.log
+.opencode/
+opencode.json
+AGENTS.md
+CONTEXT.md
+/plan of work/
+/logo/

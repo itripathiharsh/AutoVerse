@@ -147,22 +147,11 @@ class ComponentHealthTest {
         )
     }
 
-    // --- Frame sampling and map ---------------------------------------------
+    // --- Frame sampling ------------------------------------------------------
 
     @Test
     fun `frame sampling is ready only while tracking`() {
         assertEquals(ComponentStatus.READY, frameTrackingHealth(tracking = true).status)
         assertEquals(ComponentStatus.DISABLED, frameTrackingHealth(tracking = false).status)
-    }
-
-    @Test
-    fun `embedded map is disabled by default and labeled experimental`() {
-        val disabled = embeddedMapHealth(enabled = false)
-        assertEquals(ComponentStatus.DISABLED, disabled.status)
-        assertEquals(
-            "Off by default; the preview is an experimental prototype.",
-            disabled.detail,
-        )
-        assertEquals(ComponentStatus.READY, embeddedMapHealth(enabled = true).status)
     }
 }

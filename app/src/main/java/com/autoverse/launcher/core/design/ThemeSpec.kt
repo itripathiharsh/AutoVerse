@@ -9,8 +9,22 @@ import com.autoverse.launcher.core.design.tokens.AtelierDayColors
 import com.autoverse.launcher.core.design.tokens.AutoVerseColors
 import com.autoverse.launcher.core.design.tokens.CobaltDarkColors
 import com.autoverse.launcher.core.design.tokens.CobaltDayColors
+import com.autoverse.launcher.core.design.tokens.FortressDarkColors
+import com.autoverse.launcher.core.design.tokens.FortressDayColors
+import com.autoverse.launcher.core.design.tokens.GothamDarkColors
+import com.autoverse.launcher.core.design.tokens.GothamDayColors
+import com.autoverse.launcher.core.design.tokens.HotRodDarkColors
+import com.autoverse.launcher.core.design.tokens.HotRodDayColors
 import com.autoverse.launcher.core.design.tokens.NeonPulseDarkColors
 import com.autoverse.launcher.core.design.tokens.NeonPulseDayColors
+import com.autoverse.launcher.core.design.tokens.NeonTokyoDarkColors
+import com.autoverse.launcher.core.design.tokens.NeonTokyoDayColors
+import com.autoverse.launcher.core.design.tokens.SakuraDarkColors
+import com.autoverse.launcher.core.design.tokens.SakuraDayColors
+import com.autoverse.launcher.core.design.tokens.ShonenDarkColors
+import com.autoverse.launcher.core.design.tokens.ShonenDayColors
+import com.autoverse.launcher.core.design.tokens.WebRushDarkColors
+import com.autoverse.launcher.core.design.tokens.WebRushDayColors
 import com.autoverse.launcher.core.design.tokens.ObsidianDarkColors
 import com.autoverse.launcher.core.design.tokens.ObsidianDayColors
 import com.autoverse.launcher.core.model.AppearanceMode
@@ -66,12 +80,63 @@ private val ApexSpec = ThemeSpec(
     lightColors = ApexDayColors,
 )
 
+private val SakuraSpec = ThemeSpec(
+    id = AutoVerseThemeId.SAKURA,
+    displayName = AutoVerseThemeId.SAKURA.displayName,
+    darkColors = SakuraDarkColors,
+    lightColors = SakuraDayColors,
+)
+
+private val NeonTokyoSpec = ThemeSpec(
+    id = AutoVerseThemeId.NEON_TOKYO,
+    displayName = AutoVerseThemeId.NEON_TOKYO.displayName,
+    darkColors = NeonTokyoDarkColors,
+    lightColors = NeonTokyoDayColors,
+)
+
+private val ShonenSpec = ThemeSpec(
+    id = AutoVerseThemeId.SHONEN,
+    displayName = AutoVerseThemeId.SHONEN.displayName,
+    darkColors = ShonenDarkColors,
+    lightColors = ShonenDayColors,
+)
+
+private val GothamSpec = ThemeSpec(
+    id = AutoVerseThemeId.GOTHAM,
+    displayName = AutoVerseThemeId.GOTHAM.displayName,
+    darkColors = GothamDarkColors,
+    lightColors = GothamDayColors,
+)
+
+private val HotRodSpec = ThemeSpec(
+    id = AutoVerseThemeId.HOT_ROD,
+    displayName = AutoVerseThemeId.HOT_ROD.displayName,
+    darkColors = HotRodDarkColors,
+    lightColors = HotRodDayColors,
+)
+
+private val FortressSpec = ThemeSpec(
+    id = AutoVerseThemeId.FORTRESS,
+    displayName = AutoVerseThemeId.FORTRESS.displayName,
+    darkColors = FortressDarkColors,
+    lightColors = FortressDayColors,
+)
+
+private val WebRushSpec = ThemeSpec(
+    id = AutoVerseThemeId.WEB_RUSH,
+    displayName = AutoVerseThemeId.WEB_RUSH.displayName,
+    darkColors = WebRushDarkColors,
+    lightColors = WebRushDayColors,
+)
+
 /**
  * Every theme the launcher can render, in settings-picker order. The registry
  * must cover each [AutoVerseThemeId] exactly once — ThemeSpecTest enforces it.
  */
 val AutoVerseThemeSpecs: List<ThemeSpec> =
-    listOf(CobaltSpec, ObsidianSpec, NeonPulseSpec, AtelierSpec, ApexSpec)
+    listOf(CobaltSpec, ObsidianSpec, NeonPulseSpec, AtelierSpec, ApexSpec,
+        SakuraSpec, NeonTokyoSpec, ShonenSpec, GothamSpec, HotRodSpec,
+        FortressSpec, WebRushSpec)
 
 /** Resolves the spec for [themeId]. Every enum value is registered. */
 fun themeSpecFor(themeId: AutoVerseThemeId): ThemeSpec =

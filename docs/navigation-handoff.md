@@ -19,10 +19,11 @@ setting and its resolution, live destination validation, documented URI
 construction, launch-outcome classification with honest failure copy, the
 settings section and the dashboard card/bar states.
 
-Deliberately excluded: embedded map rendering, `ACCESS_FINE_LOCATION` (or any
-location permission), route/ETA/traffic computation, tracking a hand-off after
-launch, and historical destination storage — the destination lives in the
-card's text field only and is never persisted.
+Deliberately excluded: embedded map rendering (the MapLibre prototype was
+removed entirely in 0.20.0 — see `docs/map-poc.md`), route/ETA/traffic
+computation, tracking a hand-off after launch, and historical destination
+storage — the destination lives in the card's text field only and is
+never persisted by the Compose launcher.
 
 ## 2. Architecture
 
@@ -235,12 +236,10 @@ is a child of the body layout and the map surface is never recreated by the
 toggle or by query changes. Panel visibility and the query survive
 configuration changes (`rememberSaveable`).
 
-**Embedded map.** Still off by default, and the page does not depend on it:
-when the flag is off the body is an intentional handoff surface (provider
-name, honest explanation, "Open navigation app" action), never a fake map.
-When the flag is on, the page renders the injected `EmbeddedMapSurface` and
-handles its loading/error/empty/fallback states through the existing
-`MapPocController`.
+**Embedded map.** Removed in 0.20.0. The body is always the intentional
+handoff surface (provider name, honest explanation, "Open navigation app"
+action), never a fake map; the `embeddedMapEnabled` flag, the
+`EmbeddedMapSurface` slot and the `MapPocController` wiring are gone.
 
 **Tests (Phase 18).** 73 new JVM tests: `SavedPlaceTest` (12),
 `SavedPlaceCodecTest` (13), `RecentDestinationTest` (12),
@@ -249,9 +248,10 @@ handles its loading/error/empty/fallback states through the existing
 (14, `core/design`). Instrumented `NavigationScreenTest` (20 cases: field
 validation/clear, suggestions, panel toggle, reflow keeps the map surface
 alive, save/remove flows, failure snackbar copy, stale preferred app,
-`OpenOnly` routing note, empty hints) compiles via
-`assembleDebugAndroidTest` only — no device attached, never executed.
+`OpenOnly` routing note, empty hints; reworked in 0.20.0 for the
+map-free body) compiles via `assembleDebugAndroidTest` only — no device
+attached, never executed.
 
 **UNVERIFIED on hardware:** everything in §9 still applies, plus the page's
 on-device keyboard behaviour, panel reflow ergonomics, suggestion tap
-targets and the embedded-map states on a real head unit.
+targets on a real head unit.

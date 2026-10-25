@@ -130,8 +130,8 @@ storage exists.
 
 TalkBack traversal order and announcement phrasing, real font-scale
 rendering at extreme values, glanceability in a car, OEM variants of the
-notification-access settings screen, and MapLibre's rendered attribution
-UI. These are scheduled for first-device verification in Phases 12–13.
+notification-access settings screen, and the cockpit WebView's map
+attribution. These are scheduled for first-device verification.
 
 ## Exit criteria
 

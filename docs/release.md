@@ -516,3 +516,131 @@ executed.
 The device checklist above — including the release→release upgrade case
 (this artifact is the vc17 → vc18 upgrade candidate) — remains
 unchecked/UNVERIFIED: no hardware was available.
+
+
+## 0.20.0-vector-cockpit (2026-10-24) — no-image rebuild + map prototype removal
+
+- **Cockpit is image-free**: the 7 bundled PNGs (album art fallback, car
+  photo, 5 theme thumbnails) were replaced by code — a CSS/SVG artwork
+  placeholder with the real MediaSession artwork overlaid when present,
+  an inline SVG coupe silhouette, and CSS theme mini-previews. The APK
+  contains no image outside the required `mipmap` launcher icons.
+- **MapLibre prototype removed** (see `docs/map-poc.md` banner): no
+  `libmaplibre.so`, no `ACCESS_WIFI_STATE`, okhttp/gson/timber dropped
+  from the dex (verified via apkanalyzer).
+- **Bug fixes**: WebView destroyed + JS interface removed on dispose;
+  bridge holder survives recomposition (ON_RESUME refresh worked only by
+  luck before); media artwork decode/compress moved off the main thread
+  with a 512 px cap; stale artwork cleared when a session ends; real
+  SEEK through `MediaController.transportControls.seekTo` (cockpit
+  scrubber was a dead control).
+- **Artifacts**: `app-release.apk` **2,364,911 B** (vc20 /
+  `0.20.0-vector-cockpit`; prior universal release 25.6 MB — −91%),
+  signed with the AutoVerse Release cert (SHA-256 `29C3761C…1B86`);
+  `app-debug.apk` 19,671,345 B; 385 unit tests / 0 failures (401 before;
+  16 map-PoC tests removed with the feature).
+- Minified release dex contains no okhttp/gson/timber/maplibre classes
+  (apkanalyzer check); `assets/cockpit/` is 424 KB of pure code + Leaflet.
+
+
+## 0.21.0-tier1-premium (2026-10-25) — Tier 1 + premium themes
+
+- **Onboarding**: 4-step first-run flow (welcome / theme pick / real setup
+  checks / done) shown while `onboardingComplete` is false; replayable from
+  Settings › About. Setup checks are real: system home-app chooser (never
+  forces), notification-listener state, runtime location grant, speech
+  service resolution (manifest `<queries>` extended for
+  `RecognizerIntent`).
+- **Driving mode**: cockpit-only, engaged from live GPS speed with
+  hysteresis (enter >8 km/h, exit after 30 s below 5 km/h). Pauses
+  decorative animation, enlarges dock/chips/capsules, shows a Driving chip.
+  Never blocks function.
+- **Premium themes**: Sakura, Neon Tokyo, Shonen, Gotham, Hot Rod registered
+  end-to-end (Compose palettes in `AutoVerseColorsPremium.kt` + registry +
+  bridge + cockpit CSS with static signature flair backdrops). Gated by
+  `premiumUnlocked` (local entitlement, default locked); the unlock is an
+  honest early-access grant — no payment claims. All 10 palettes pass the
+  ContrastTest rules by construction (computed before writing).
+- Performance: flair backdrops are static GPU-composited gradients (no
+  images, no per-frame work); WebView renderer priority policy set for
+  low-RAM units (API 25+).
+- Artifacts: `AutoVerse.apk` / `app-release.apk` **2,275,156 B**, vc23 /
+  `0.21.0-tier1-premium`, release cert unchanged; 392 unit tests / 0
+  failures. FE verification: 7/7 playwright checks (premium lock/unlock,
+  flair per theme, driving mode engage/exit, settings scroll).
+
+
+## 0.22.0-tier2-obd-offline (2026-10-25) — Tier 2 part 1
+
+- **OBD live engine data**: pure ELM327 protocol core (13 unit tests) +
+  Bluetooth SPP repository + cockpit ENGINE · OBD strip with honest
+  states (em dashes for unsupported PIDs, never fabricated values).
+  `BLUETOOTH_CONNECT` added (runtime, API 31+). Socket behaviour
+  UNVERIFIED until a real adapter is paired.
+- **Offline map support**: passive viewed-tile mirror (IndexedDB), offline
+  banner, offline search honesty, and the Settings "clear offline map
+  cache" control now really clears (previously a fabricated toast).
+- Artifacts: `AutoVerse.apk` **2,293,873 B**, vc24 /
+  `0.22.0-tier2-obd-offline`, cert unchanged; **405 unit tests / 0
+  failures**. FE verification 8/8 playwright checks.
+
+
+## 0.23.0-offline-voice (2026-10-25) — Tier 2 part 2
+
+- **Offline wake-word voice**: Vosk-based "Hey AutoVerse" + 6 s command
+  window feeding the existing cockpit voice router. Opt-in toggle
+  (Settings › Spatial Audio & Media), model download-on-first-enable
+  (~40 MB, progress surfaced), RECORD_AUDIO runtime permission, foreground-
+  only listening. New deps: vosk-android 0.3.47 + JNA 5.13.0 (@aar, vosk's
+  own jna excluded to avoid duplicate classes); non-Android JNA natives
+  excluded; jniLibs useLegacyPackaging=true.
+- APK cost: 2.3 MB → **8,235,093 B** compressed (libvosk.so both ABIs).
+- Artifacts: vc25 / `0.23.0-offline-voice`, cert unchanged; **412 unit
+  tests / 0 failures** (53 suites; +7 OfflineVoiceRulesTest). FE checks:
+  toggle render, download % status, capture-state orb, cleared on disable.
+  On-device voice recognition UNVERIFIED (needs the phone + mic).
+
+
+## 0.24.0-perf-tiering (2026-10-25) — cockpit performance tiering
+
+- The cockpit now consumes the app's workload profile: bridge
+  `getWorkloadProfile()` + live `pushWorkloadProfile` (on profile change),
+  applied as body classes. **Constrained** drops the always-on GPU hogs:
+  100px-blur ambient orbs, starfield, theme flair layer, vinyl disc, all 19
+  backdrop-filter surfaces (solid fills keep legibility), and decorative
+  infinite animations. Balanced = unchanged default; Enhanced = full look.
+  Driving mode rules unchanged and stacked with the profile.
+- Leaflet + app.js load with `defer` (parse off the critical path; init
+  order preserved by document order).
+- Measured (playwright + CDP CPU throttle, median of 3 runs; ms, lower is
+  better; head-unit 1024x600 viewport):
+  - 8x throttle: Settings tab 1547→934 (−40%), theme switch 880→536
+    (−39%), home tab 570→457, apps tab 521→397.
+  - 4x throttle: Settings tab 468→321, theme switch 369→271, home
+    314→222, apps 325→235.
+  - Balanced/Enhanced tiers keep the full visual set. Heap steady ~9.8 MB.
+- Artifacts: vc26 / `0.24.0-perf-tiering`, 8,237,285 B, cert unchanged;
+  412 unit tests / 0 failures.
+
+
+## 0.25.0-theme-engine (2026-10-25) — dynamic theme system (PRD phases A/B/D/E)
+
+- **Dynamic icon engine**: `ThemeIconSpec` (closed 6-shape set incl.
+  GenericShape shields/hex/sport, border/background/glow/selected enums) +
+  per-theme specs + `ThemedAppIcon` (real PackageManager bitmaps masked by
+  the theme container in dock + drawer; artwork never recolored; fallback
+  glyph; profile-gated glow). Cockpit CSS mirrors the language via
+  clip-path masks + drop-shadow glows, disabled on Constrained.
+- **Two new identities**: Fortress (light, sky blue) and Web Rush (racing
+  red + electric blue) — contrast-verified palettes, registry, bridge
+  mappings, cockpit cards/flairs. 12 themes total (7 premium).
+- **Theme sounds**: ToneGenerator (Compose) / WebAudio (cockpit), off by
+  default, rate-limited, Settings toggle + bridge methods.
+- Tests: +5 ThemeIconSpecTest, updated theme-count tests; **417 unit tests
+  / 0 failures** (54 suites). Cockpit checks: 12 cards / 7 premium /
+  unlocked, per-theme clip-path icon languages verified.
+- Artifacts: vc27 / `0.25.0-theme-engine`, 8,245,743 B, cert unchanged.
+- Deferred (documented in docs/theme-system.md): Compose theme-gallery
+  screen with preview-vs-applied split, wallpaper picker, accent variants,
+  OS launcher-icon switching (needs explicit approval), device-verified
+  icon legibility.

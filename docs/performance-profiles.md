@@ -125,6 +125,8 @@ Built with `gradle :app:assembleDebug :app:assembleRelease`:
 | `app-release-unsigned.apk` | 62,110,994 | release variant (unsigned; not installable) |
 | `app-debug-androidTest.apk` | 1,029,954 | unchanged (androidTest sources untouched) |
 
+*(Historical Phase 7–9 measurements — the MapLibre payload below was removed entirely in 0.20.0; the release APK is now 2.4 MB.)*
+
 The dominant payload is unchanged from the Phase 7 report: **MapLibre
 native libraries, 47.06 MB compressed (~68% of the APK)**, shipped for all
 four ABIs even though the embedded-map flag defaults off:

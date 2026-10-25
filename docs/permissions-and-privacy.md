@@ -13,12 +13,11 @@ requested or used.
 
 | Permission | Origin | Why it exists | Runtime prompt |
 | --- | --- | --- | --- |
-| `INTERNET` | Declared in `AndroidManifest.xml` | Only for the feature-flagged embedded-map prototype (default **off**): MapLibre fetches its style document and vector tiles over HTTPS when the map screen is opened. The launcher itself, the app drawer and the navigation hand-off work fully offline. | No (install-time) |
-| `ACCESS_NETWORK_STATE` | Declared in `AndroidManifest.xml` (also merged by MapLibre) | Two uses: it feeds the dashboard Wi-Fi indicator from the current network's capabilities (Phase 14; read on-device only), and MapLibre's internal download management. | No (install-time) |
-| `ACCESS_WIFI_STATE` | Merged by MapLibre | Same as above. | No (install-time) |
+| `INTERNET` | Declared in `AndroidManifest.xml` | Cockpit WebView only: Leaflet map tiles, Nominatim geocoding, and http(s) artwork URLs from media sessions. The launcher itself, the app drawer and the navigation hand-off work fully offline. | No (install-time) |
+| `ACCESS_NETWORK_STATE` | Declared in `AndroidManifest.xml` | Feeds the dashboard Wi-Fi indicator from the current network's capabilities (read on-device only). | No (install-time) |
 | `BLUETOOTH` | Declared in `AndroidManifest.xml`, capped at `maxSdkVersion="30"` | Reads the adapter on/off state for the dashboard Bluetooth indicator on downlevel devices only. From Android 12 the app never requests `BLUETOOTH_CONNECT`; the indicator simply stays hidden there. | No (install-time) |
 | `DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION` | Merged by AndroidX Core | Protects the app's own dynamically registered receivers. | No |
-| `ACCESS_FINE_LOCATION` / `ACCESS_COARSE_LOCATION` | Declared by MapLibre, **removed at merge** | MapLibre declares them for an optional user-location puck that AutoVerse never uses. `tools:node="remove"` keeps the shipped manifest free of any location access. No location API exists anywhere in the app. | n/a — not present |
+| `ACCESS_FINE_LOCATION` / `ACCESS_COARSE_LOCATION` | Declared in `AndroidManifest.xml` | Cockpit live GPS only: map position, recenter and the speed readout inside the cockpit WebView. Granted at runtime (MainActivity requests on first launch; the WebView geolocation prompt is answered for the cockpit origin). Foreground-only, never stored or transmitted; the navigation hand-off never receives coordinates the user did not type. | Yes (runtime) |
 
 ### Components
 
@@ -55,11 +54,12 @@ Scoped to exactly what the launcher needs; `QUERY_ALL_PACKAGES` is not used:
 | Navigation hand-off to a maps app | Nothing (uses installed apps) | Hand-off unavailable only if no nav app is installed — the UI explains and falls back to the system default. |
 | Media card (play/pause/skip, metadata) | Notification-listener access via system settings | The card shows an explained "Media access required" state with a direct link to the system settings page. No crash, no silent failure. |
 | Dashboard Wi-Fi / Bluetooth indicators | `ACCESS_NETWORK_STATE`; `BLUETOOTH` (≤ API 30, install-time only) | Indicators stay hidden (`UNKNOWN`) and the header stays clean — no prompt, no error state. |
-| Embedded map prototype (experimental, off by default) | `INTERNET` (+ the merged network-state permissions) | The rest of the launcher is unaffected; the map screen cannot be reached while the toggle is off. |
+| Cockpit dashboard (WebView UI: map tiles, geocoding, GPS, media artwork) | `INTERNET`; `ACCESS_FINE_LOCATION`/`ACCESS_COARSE_LOCATION` (runtime) | Without location the cockpit map simply shows no position puck and the speed readout stays empty; without network the map tiles stay blank and everything else works. |
 
-If the embedded-map prototype is dropped before release, `INTERNET` and the
-MapLibre dependency (and with it the two merged network permissions) should
-be removed together — the launcher has no other network use.
+The flag-off MapLibre map prototype was **removed in 0.20.0** together with
+its dependency and the two network permissions MapLibre used to merge
+(`ACCESS_WIFI_STATE` and its own `ACCESS_NETWORK_STATE` merge) — see
+`docs/map-poc.md`.
 
 ## Notification-listener disclosure
 
@@ -83,8 +83,11 @@ implemented:
 - **No analytics, telemetry, crash reporting or advertising SDKs** exist in
   the dependency set (see `docs/third-party-licenses.md`) and no code sends
   usage data anywhere.
-- **No location history**: no location permission is present in the merged
-  manifest and no location API is called.
+- **Location stays in the cockpit, in the foreground**: the only location
+  use is the cockpit WebView's live GPS (map position, recenter, speed
+  readout). Coordinates are handed to the page in memory, never stored,
+  logged or transmitted by AutoVerse itself, and the runtime grant can be
+  revoked at any time (the cockpit then simply has no position).
 - **No connectivity tracking**: the dashboard reads the current Wi-Fi and
   Bluetooth on/off state locally, only while it is visible, to draw the
   header indicators; the values are never stored or transmitted.
@@ -94,10 +97,12 @@ implemented:
   records beyond the visible screen; the notification listener is bound by
   the system only while access is granted, and the app performs no work in
   the background.
-- **On-device storage** is limited to two DataStore files:
+- **On-device storage** is limited to three DataStore files:
   `autoverse_settings` (theme, appearance, motion, performance profile,
-  clock, navigation choice, map toggle) and `autoverse_favorites` (favorite
-  app component keys). Nothing in them is personal data.
+  clock, navigation choice), `autoverse_favorites` (favorite app component
+  keys) and `autoverse_navigation` (saved places and recent destinations).
+  Nothing in them is personal data. The cockpit WebView additionally keeps
+  UI preferences (favorites, recents, places) in its own localStorage.
   `android:allowBackup` is left at its default, so these two files can be
   included in the user's own Android Auto Backup; they contain no
   identifiers beyond the user's chosen favorite app packages.
@@ -106,10 +111,10 @@ implemented:
   metrics, frame statistics) for the user standing in front of the device.
   Nothing is written to disk or transmitted, and no device identifiers
   (serial, IMEI, advertising ID, MAC) are shown or read.
-- **Network use** happens only when the user enables the experimental map
-  and opens it; those requests go to the MapLibre demo tile service, which
-  is marked in-app as a prototype that must be replaced by a licensed
-  provider before production use (see `docs/third-party-licenses.md`).
+- **Network use** happens only inside the cockpit WebView: Leaflet map
+  tiles, Nominatim geocoding, and http(s) artwork URLs from media sessions.
+  Tile-provider licensing for the cockpit map is an open pre-production
+  item (see `docs/third-party-licenses.md`).
 - **App-list scanning stays local and minimal**: the drawer reads each
   launchable app's label, icon, declared category, the category intents
   it answers, and its first-install timestamp from the local

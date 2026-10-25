@@ -6,6 +6,8 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import com.autoverse.launcher.core.design.icons.LocalAutoVerseIconSpec
+import com.autoverse.launcher.core.design.icons.themeIconSpecFor
 import com.autoverse.launcher.core.design.tokens.AutoVerseTypography
 import com.autoverse.launcher.core.design.tokens.LocalAutoVerseMotion
 import com.autoverse.launcher.core.design.tokens.motionSpecFor
@@ -63,6 +65,7 @@ fun AutoVerseTheme(
     CompositionLocalProvider(
         LocalAutoVerseColors provides colors,
         LocalAutoVerseMotion provides motion,
+        LocalAutoVerseIconSpec provides themeIconSpecFor(themeId),
     ) {
         MaterialTheme(
             colorScheme = materialColors,

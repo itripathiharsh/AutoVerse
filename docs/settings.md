@@ -57,7 +57,7 @@ changes (the selected category is a `rememberSaveable` name, not an index).
 | Category | Real controls |
 |---|---|
 | Appearance | Theme (5 swatch rows), Day/Night/System, text size slider (0.85×–1.30×, live % label, "Reset text size" when scaled), Adaptive layout (read-only "Automatic (Recommended)" — the real engine decides), 24-hour clock, Reduce motion |
-| Navigation | Provider rows (System default, Google Maps, Waze, discovered apps), stale-preference notice when the saved package is gone, embedded map (prototype) switch — off by default, "Open map preview" only when enabled |
+| Navigation | Provider rows (System default, Google Maps, Waze, discovered apps), stale-preference notice when the saved package is gone. The experimental embedded-map switch was removed with the MapLibre prototype in 0.20.0 |
 | Media & Audio | Notification-listener access state, explanation, route to Android settings; media-card description. No fake EQ or players |
 | Apps & Shortcuts | Real persisted favorites (icon, launch, star = remove via the same store the drawer uses), empty-state hint, "Open app drawer" |
 | Performance | Constrained / Balanced / Enhanced profiles, "Prefer smoothness" switch, Selected vs Effective workload rows, diagnostics route |
@@ -131,8 +131,10 @@ no new permissions for any of this.
 
 All keys live in the existing `SettingsRepository`: theme id, appearance
 mode, reduced motion, performance profile, prefer-smoothness, 24-hour
-clock, text scale (new in Phase 16), navigation package, embedded map —
-plus the separate favorites store. Unknown or malformed stored values fall
+clock, text scale (new in Phase 16), navigation package — plus the
+separate favorites store. The `embedded_map` key stopped being read in
+0.20.0 (prototype removed); stale values in existing installs are simply
+ignored. Unknown or malformed stored values fall
 back to app defaults per key (Phase 10 recovery behavior, extended and
 unit-tested in Phase 16).
 

@@ -1,11 +1,18 @@
 package com.autoverse.launcher.core.model
 
-enum class AutoVerseThemeId(val displayName: String) {
+enum class AutoVerseThemeId(val displayName: String, val premium: Boolean = false) {
     COBALT("Cobalt"),
     OBSIDIAN("Obsidian"),
     NEON_PULSE("Neon Pulse"),
     ATELIER("Atelier"),
     APEX("Apex"),
+    SAKURA("Sakura", premium = true),
+    NEON_TOKYO("Neon Tokyo", premium = true),
+    SHONEN("Shonen", premium = true),
+    GOTHAM("Gotham", premium = true),
+    HOT_ROD("Hot Rod", premium = true),
+    FORTRESS("Fortress", premium = true),
+    WEB_RUSH("Web Rush", premium = true),
 }
 
 enum class PerformanceProfile(val displayName: String) {
@@ -35,6 +42,12 @@ data class AppSettings(
      */
     val textScale: Float = 1.0f,
     val navigationPackage: String? = null,
-    /** Phase 7 prototype switch; the embedded map stays off unless opted in. */
-    val embeddedMapEnabled: Boolean = false,
+    /** Premium entitlement (0.21.0). Local flag for now; Play Billing plugs into this. */
+    val premiumUnlocked: Boolean = false,
+    /** Tier 1: false until the first-run onboarding finishes. */
+    val onboardingComplete: Boolean = false,
+    /** Tier 2: opt-in offline wake-word voice ("Hey AutoVerse"). Download-on-first-use model. */
+    val offlineVoiceEnabled: Boolean = false,
+    /** Theme system Phase E: synthesized confirmation sounds; off by default. */
+    val themeSoundsEnabled: Boolean = false,
 )

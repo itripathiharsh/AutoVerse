@@ -1,3 +1,16 @@
+> **REMOVED (0.20.0, 2026-10-24).** The MapLibre embedded-map prototype
+> described below was deleted entirely: `feature/map/` (4 files), the
+> `embeddedMapEnabled` flag and its Settings switch, the
+> `EmbeddedMapSurface` slot on the Navigation page, the
+> `org.maplibre.gl:android-sdk` dependency, and the map unit/instrumented
+> tests. Rationale: the prototype was permanently flag-off (Phase 7 said
+> "do not ship yet"), the cockpit WebView dashboard now provides the map
+> experience via Leaflet, and the native libs cost ~20 MB of every APK for
+> a code path that could not be enabled. The cockpit's tile provider is an
+> open pre-production licensing item — see
+> `docs/third-party-licenses.md`. The rest of this document is the
+> preserved evaluation history.
+
 # Embedded Map Proof of Concept (Phase 7)
 
 Status: **evaluated, implemented behind a disabled-by-default feature flag,

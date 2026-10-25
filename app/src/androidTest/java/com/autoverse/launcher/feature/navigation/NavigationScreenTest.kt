@@ -1,14 +1,12 @@
 package com.autoverse.launcher.feature.navigation
 
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
@@ -17,7 +15,6 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithContentDescription
-import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
@@ -37,10 +34,9 @@ import org.junit.Test
 import java.util.concurrent.atomic.AtomicReference
 
 /**
- * Phase 18 — navigation page behavior pins. The embedded map surface is
- * injected as a stub, so these tests exercise the real page layout, search
- * states, suggestions, the places panel reflow, and the handoff paths
- * without MapLibre native libraries.
+ * Phase 18 — navigation page behavior pins. These tests exercise the real
+ * page layout, search states, suggestions, the places panel reflow, and the
+ * handoff paths on the intentional (non-map) handoff body.
  *
  * Sizes default to a phone-sized window so every asserted node is on-screen
  * and clickable; the WIDE head-unit layout is driven through
@@ -63,7 +59,6 @@ class NavigationScreenTest {
         resolved: ResolvedNavigationProvider = maps,
         savedPlaces: List<SavedPlace> = emptyList(),
         recentDestinations: List<RecentDestination> = emptyList(),
-        embeddedMapEnabled: Boolean = false,
         initialQuery: String = "",
         placesPanelVisible: Boolean = true,
         onNavigate: suspend (NavigationDestination) -> NavigationOutcome = {
@@ -83,7 +78,6 @@ class NavigationScreenTest {
                         resolved = resolved,
                         savedPlaces = savedPlaces,
                         recentDestinations = recentDestinations,
-                        embeddedMapEnabled = embeddedMapEnabled,
                         query = query,
                         onQueryChange = { query = it },
                         placesPanelVisible = panelVisible,
@@ -94,11 +88,6 @@ class NavigationScreenTest {
                         onRemovePlace = onRemovePlace,
                         onChangeProvider = onChangeProvider,
                         onBack = {},
-                        embeddedMapSurface = if (embeddedMapEnabled) {
-                            { Box(Modifier.fillMaxSize().testTag("map-surface")) }
-                        } else {
-                            null
-                        },
                     )
                 }
             }
@@ -106,18 +95,10 @@ class NavigationScreenTest {
     }
 
     @Test
-    fun disabledEmbeddedMapShowsTheHandoffSurface() {
+    fun handoffSurfaceIsTheDefaultBody() {
         setScreen()
         composeRule.onNodeWithText("Turn-by-turn with Google Maps").assertExists()
         composeRule.onNodeWithText("Open Google Maps").assertExists()
-        composeRule.onNodeWithTag("map-surface").assertDoesNotExist()
-    }
-
-    @Test
-    fun embeddedMapWhenEnabledUsesTheInjectedSurface() {
-        setScreen(embeddedMapEnabled = true)
-        composeRule.onNodeWithTag("map-surface").assertExists()
-        composeRule.onNodeWithText("Turn-by-turn with Google Maps").assertDoesNotExist()
     }
 
     @Test
@@ -206,11 +187,11 @@ class NavigationScreenTest {
     }
 
     @Test
-    fun hidingThePanelKeepsTheMapSurfaceAlive() {
-        setScreen(embeddedMapEnabled = true)
-        composeRule.onNodeWithTag("map-surface").assertExists()
+    fun hidingThePanelKeepsTheHandoffSurface() {
+        setScreen()
+        composeRule.onNodeWithText("Turn-by-turn with Google Maps").assertExists()
         composeRule.onNodeWithText("Hide places panel").performClick()
-        composeRule.onNodeWithTag("map-surface").assertExists()
+        composeRule.onNodeWithText("Turn-by-turn with Google Maps").assertExists()
     }
 
     @Test
@@ -221,10 +202,10 @@ class NavigationScreenTest {
     }
 
     @Test
-    fun wideWindowsShowTheSidePanelAlongsideTheMap() {
-        setScreen(widthDp = 1100, heightDp = 700, embeddedMapEnabled = true)
+    fun wideWindowsShowTheSidePanelAlongsideTheHandoffSurface() {
+        setScreen(widthDp = 1100, heightDp = 700)
         composeRule.onNodeWithText("PLACES").assertExists()
-        composeRule.onNodeWithTag("map-surface").assertExists()
+        composeRule.onNodeWithText("Turn-by-turn with Google Maps").assertExists()
     }
 
     @Test

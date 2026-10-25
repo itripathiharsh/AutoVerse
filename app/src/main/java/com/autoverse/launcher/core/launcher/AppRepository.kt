@@ -53,6 +53,8 @@ class AppRepository(private val context: Context) {
                 category = AppCategoryClassifier.classify(
                     applicationCategory = declaredApplicationCategory(activity.applicationInfo),
                     matchedIntentCategories = intentCategoriesByPackage[activity.packageName].orEmpty(),
+                    label = label,
+                    packageName = activity.packageName,
                 ),
                 firstInstallTime = installTimesByPackage.getOrPut(activity.packageName) {
                     firstInstallTimeOf(packageManager, activity.packageName)

@@ -19,7 +19,6 @@ class AppSettingsTest {
         assertTrue(defaults.clock24h)
         assertEquals(1.0f, defaults.textScale, 0.0001f)
         assertNull(defaults.navigationPackage)
-        assertFalse(defaults.embeddedMapEnabled)
     }
 
     @Test
@@ -28,10 +27,28 @@ class AppSettingsTest {
     }
 
     @Test
-    fun `theme labels cover the five cabin themes`() {
+    fun `theme labels cover the twelve cabin themes in picker order`() {
         assertEquals(
-            listOf("Cobalt", "Obsidian", "Neon Pulse", "Atelier", "Apex"),
+            listOf("Cobalt", "Obsidian", "Neon Pulse", "Atelier", "Apex",
+                "Sakura", "Neon Tokyo", "Shonen", "Gotham", "Hot Rod",
+                "Fortress", "Web Rush"),
             AutoVerseThemeId.entries.map { it.displayName },
         )
+    }
+
+    @Test
+    fun `premium flag marks exactly the seven premium themes`() {
+        assertEquals(
+            listOf("Sakura", "Neon Tokyo", "Shonen", "Gotham", "Hot Rod",
+                "Fortress", "Web Rush"),
+            AutoVerseThemeId.entries.filter { it.premium }.map { it.displayName },
+        )
+    }
+
+    @Test
+    fun `tier 1 defaults - premium locked, onboarding pending`() {
+        val defaults = AppSettings()
+        assertFalse(defaults.premiumUnlocked)
+        assertFalse(defaults.onboardingComplete)
     }
 }

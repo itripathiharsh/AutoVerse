@@ -25,7 +25,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.History
-import androidx.compose.material.icons.outlined.Map
 import androidx.compose.material.icons.outlined.Navigation
 import androidx.compose.material.icons.outlined.Place
 import androidx.compose.material.icons.outlined.Search
@@ -39,7 +38,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -54,7 +52,6 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.autoverse.launcher.core.design.LocalAutoVerseColors
 import com.autoverse.launcher.core.design.components.AutoVerseScreen
 import com.autoverse.launcher.core.design.components.AutoVerseTextField
@@ -82,10 +79,6 @@ import com.autoverse.launcher.core.navigation.navigationFailureMessage
 import com.autoverse.launcher.core.navigation.navigationSuggestions
 import com.autoverse.launcher.core.navigation.parseNavigationDestination
 import com.autoverse.launcher.core.navigation.supportsOpenApp
-import com.autoverse.launcher.feature.map.EmbeddedMapSurface
-import com.autoverse.launcher.feature.map.MapPocContent
-import com.autoverse.launcher.feature.map.MapPocController
-import com.autoverse.launcher.feature.map.MapPocState
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 
@@ -93,20 +86,18 @@ import kotlinx.coroutines.launch
  * Phase 18 — the navigation page. One destination field (free text or
  * coordinates, validated by the existing parser), real suggestions from
  * saved places and confirmed handoffs, and a map-dominant body. The places
- * panel is a child of the body layout: showing or hiding it reflows the map
- * into the freed space without ever recreating the map itself.
+ * panel is a child of the body layout: showing or hiding it reflows the
+ * handoff surface into the freed space.
  *
- * The embedded map stays off by default; when it is off the body is an
- * intentional surface that hands off to the provider app, never a fake map.
- * No location permission is used and no location data is produced anywhere
- * on this screen.
+ * The body is an intentional surface that hands off to the provider app,
+ * never a fake map. No location permission is used and no location data is
+ * produced anywhere on this screen.
  */
 @Composable
 fun NavigationScreen(
     resolved: ResolvedNavigationProvider,
     savedPlaces: List<SavedPlace>,
     recentDestinations: List<RecentDestination>,
-    embeddedMapEnabled: Boolean,
     query: String,
     onQueryChange: (String) -> Unit,
     placesPanelVisible: Boolean,
@@ -118,14 +109,10 @@ fun NavigationScreen(
     onChangeProvider: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
-    embeddedMapSurface: (@Composable () -> Unit)? = null,
 ) {
     val provider = resolved.provider
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    val controller = remember { MapPocController() }
-    val mapState by controller.state.collectAsStateWithLifecycle()
-    var reloadToken by remember { mutableIntStateOf(0) }
     var draftLabel by rememberSaveable { mutableStateOf("") }
 
     val parseResult = remember(query) { parseNavigationDestination(query) }
@@ -213,22 +200,9 @@ fun NavigationScreen(
                             horizontalArrangement = Arrangement.spacedBy(AutoVerseSpacing.stackGap),
                         ) {
                             MapArea(
-                                embeddedMapEnabled = embeddedMapEnabled,
                                 providerLabel = provider.label,
                                 supportsDestination = provider.supportsDestination,
-                                mapState = mapState,
-                                onRetry = {
-                                    reloadToken += 1
-                                    controller.reload()
-                                },
                                 onOpenApp = handleOpenApp,
-                                mapSurface = embeddedMapSurface ?: {
-                                    EmbeddedMapSurface(
-                                        controller = controller,
-                                        reloadToken = reloadToken,
-                                        modifier = Modifier.fillMaxSize(),
-                                    )
-                                },
                                 modifier = Modifier
                                     .weight(1f)
                                     .fillMaxHeight(),
@@ -255,22 +229,9 @@ fun NavigationScreen(
                             verticalArrangement = Arrangement.spacedBy(AutoVerseSpacing.stackGap),
                         ) {
                             MapArea(
-                                embeddedMapEnabled = embeddedMapEnabled,
                                 providerLabel = provider.label,
                                 supportsDestination = provider.supportsDestination,
-                                mapState = mapState,
-                                onRetry = {
-                                    reloadToken += 1
-                                    controller.reload()
-                                },
                                 onOpenApp = handleOpenApp,
-                                mapSurface = embeddedMapSurface ?: {
-                                    EmbeddedMapSurface(
-                                        controller = controller,
-                                        reloadToken = reloadToken,
-                                        modifier = Modifier.fillMaxSize(),
-                                    )
-                                },
                                 modifier = Modifier
                                     .weight(1f)
                                     .fillMaxWidth(),
@@ -470,82 +431,58 @@ private fun SuggestionRow(
 
 @Composable
 private fun MapArea(
-    embeddedMapEnabled: Boolean,
     providerLabel: String,
     supportsDestination: Boolean,
-    mapState: MapPocState,
-    onRetry: () -> Unit,
     onOpenApp: () -> Unit,
-    mapSurface: @Composable () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalAutoVerseColors.current
-    if (!embeddedMapEnabled) {
-        WidgetContainer(
-            title = "NAVIGATION",
-            icon = Icons.Outlined.Navigation,
-            modifier = modifier,
+    WidgetContainer(
+        title = "NAVIGATION",
+        icon = Icons.Outlined.Navigation,
+        modifier = modifier,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Column(
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally,
+                    .size(AutoVerseSpacing.heroChip)
+                    .clip(CircleShape)
+                    .background(colors.accentSoft),
+                contentAlignment = Alignment.Center,
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(AutoVerseSpacing.heroChip)
-                        .clip(CircleShape)
-                        .background(colors.accentSoft),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Navigation,
-                        contentDescription = null,
-                        modifier = Modifier.size(AutoVerseIcons.hero),
-                        tint = colors.accent,
-                    )
-                }
-                Spacer(Modifier.size(AutoVerseSpacing.sm))
-                Text(
-                    text = "Turn-by-turn with $providerLabel",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = colors.textPrimary,
-                    textAlign = TextAlign.Center,
+                Icon(
+                    imageVector = Icons.Outlined.Navigation,
+                    contentDescription = null,
+                    modifier = Modifier.size(AutoVerseIcons.hero),
+                    tint = colors.accent,
                 )
-                Spacer(Modifier.size(AutoVerseSpacing.xs))
-                Text(
-                    text = if (supportsDestination) {
-                        "Type a destination and tap Navigate \u2014 it opens in $providerLabel. " +
-                            "The embedded map is off; you can enable it in Settings \u203a Navigation."
-                    } else {
-                        "This app plans routes inside its own app. " +
-                            "The embedded map is off; you can enable it in Settings \u203a Navigation."
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = colors.textSecondary,
-                    textAlign = TextAlign.Center,
-                )
-                Spacer(Modifier.size(AutoVerseSpacing.md))
-                PrimaryAction(text = "Open $providerLabel", onClick = onOpenApp)
             }
-        }
-    } else {
-        WidgetContainer(
-            title = "EMBEDDED MAP \u2014 PROTOTYPE",
-            subtitle = "MapLibre demo style. Evaluation only \u2014 not a production tile service.",
-            icon = Icons.Outlined.Map,
-            modifier = modifier,
-        ) {
-            MapPocContent(
-                state = mapState,
-                providerLabel = providerLabel,
-                onRetry = onRetry,
-                onOpenNavigationApp = onOpenApp,
-                mapSurface = mapSurface,
-                modifier = Modifier.weight(1f),
+            Spacer(Modifier.size(AutoVerseSpacing.sm))
+            Text(
+                text = "Turn-by-turn with $providerLabel",
+                style = MaterialTheme.typography.titleMedium,
+                color = colors.textPrimary,
+                textAlign = TextAlign.Center,
             )
+            Spacer(Modifier.size(AutoVerseSpacing.xs))
+            Text(
+                text = if (supportsDestination) {
+                    "Type a destination and tap Navigate \u2014 it opens in $providerLabel."
+                } else {
+                    "This app plans routes inside its own app."
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.textSecondary,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.size(AutoVerseSpacing.md))
+            PrimaryAction(text = "Open $providerLabel", onClick = onOpenApp)
         }
     }
 }

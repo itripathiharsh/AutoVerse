@@ -48,9 +48,28 @@ class SettingsRepository(private val context: Context) {
                 clock24h = preferences[KEY_CLOCK_24H] ?: defaults.clock24h,
                 textScale = textScaleFromStorage(preferences[KEY_TEXT_SCALE]),
                 navigationPackage = preferences[KEY_NAVIGATION_PACKAGE],
-                embeddedMapEnabled = preferences[KEY_EMBEDDED_MAP] ?: defaults.embeddedMapEnabled,
+                premiumUnlocked = preferences[KEY_PREMIUM_UNLOCKED] ?: defaults.premiumUnlocked,
+                onboardingComplete = preferences[KEY_ONBOARDING_COMPLETE] ?: defaults.onboardingComplete,
+                offlineVoiceEnabled = preferences[KEY_OFFLINE_VOICE] ?: defaults.offlineVoiceEnabled,
+                themeSoundsEnabled = preferences[KEY_THEME_SOUNDS] ?: defaults.themeSoundsEnabled,
             )
         }
+
+    suspend fun setPremiumUnlocked(unlocked: Boolean) {
+        context.settingsDataStore.edit { it[KEY_PREMIUM_UNLOCKED] = unlocked }
+    }
+
+    suspend fun setOnboardingComplete(complete: Boolean) {
+        context.settingsDataStore.edit { it[KEY_ONBOARDING_COMPLETE] = complete }
+    }
+
+    suspend fun setOfflineVoiceEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { it[KEY_OFFLINE_VOICE] = enabled }
+    }
+
+    suspend fun setThemeSoundsEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { it[KEY_THEME_SOUNDS] = enabled }
+    }
 
     suspend fun setTheme(themeId: AutoVerseThemeId) {
         context.settingsDataStore.edit { it[KEY_THEME] = themeId.name }
@@ -92,10 +111,6 @@ class SettingsRepository(private val context: Context) {
         }
     }
 
-    suspend fun setEmbeddedMapEnabled(enabled: Boolean) {
-        context.settingsDataStore.edit { it[KEY_EMBEDDED_MAP] = enabled }
-    }
-
     /**
      * Restores every preference to its factory default. Favorites live in a
      * separate DataStore and are user content, so they are intentionally
@@ -134,6 +149,9 @@ class SettingsRepository(private val context: Context) {
         val KEY_CLOCK_24H = booleanPreferencesKey("clock_24h")
         val KEY_TEXT_SCALE = floatPreferencesKey("text_scale")
         val KEY_NAVIGATION_PACKAGE = stringPreferencesKey("navigation_package")
-        val KEY_EMBEDDED_MAP = booleanPreferencesKey("embedded_map")
+        val KEY_PREMIUM_UNLOCKED = booleanPreferencesKey("premium_unlocked")
+        val KEY_ONBOARDING_COMPLETE = booleanPreferencesKey("onboarding_complete")
+        val KEY_OFFLINE_VOICE = booleanPreferencesKey("offline_voice")
+        val KEY_THEME_SOUNDS = booleanPreferencesKey("theme_sounds")
     }
 }
