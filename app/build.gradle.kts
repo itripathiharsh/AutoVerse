@@ -22,8 +22,8 @@ android {
         applicationId = "com.autoverse.launcher"
         minSdk = 23
         targetSdk = 34
-        versionCode = 27
-        versionName = "0.25.0-theme-engine"
+        versionCode = 28
+        versionName = "0.25.1-alignment"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         ndk {

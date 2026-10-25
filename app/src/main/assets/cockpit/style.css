@@ -382,7 +382,9 @@ body {
   height: 100vh;
   overflow: hidden;
   position: relative;
-  padding: 12px 18px 14px 14px;
+  /* symmetric frame: every edge matches the dock's own 14px side / 12px
+     top-bottom margins so content and rail share one alignment grid */
+  padding: 12px 14px;
 }
 
 /* ==========================================================================
@@ -798,7 +800,7 @@ body {
 .screen-canvas {
   flex: 1;
   display: none;
-  height: calc(100vh - 84px);
+  height: calc(100vh - 92px);
   overflow: hidden;
 }
 
@@ -2483,7 +2485,7 @@ body {
 }
 
 .settings-sidebar-col {
-  padding: 18px;
+  padding: 20px;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -2618,13 +2620,14 @@ body {
 }
 
 .apple-theme-carousel {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(64px, 1fr));
   gap: 12px;
   margin-bottom: 16px;
 }
 
 .theme-card-unit {
-  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -3683,10 +3686,10 @@ html, body {
   }
 
   .cockpit-viewport {
-    padding: 8px 12px 10px 10px;
+    padding: 8px 10px;
   }
   .screen-canvas {
-    height: calc(100vh - 66px);
+    height: calc(100vh - 68px);
   }
   .home-bento-grid {
     grid-template-rows: 1.35fr 1fr;
