@@ -34,10 +34,10 @@ private val BrandBlue = Color(0xFF4D93FA)
 private val BrandChrome = Color(0xFFDCE4EF)
 
 /**
- * Brand identity: the two-tone infinity mark drawn as a crisp vector (no
- * baked-in wordmark bitmap) plus the "AutoVerse" name set in the app's own
- * typography — sharp at every density and size, legible on the charcoal
- * plate in day and night themes alike.
+ * Brand identity: the user's actual AutoVerse logo mark (the only
+ * intentional image asset) plus the "AutoVerse" name set in the app's own
+ * typography — sharp at every density and legible on the charcoal plate in
+ * day and night themes alike.
  */
 @Composable
 fun BrandPlate(
@@ -53,9 +53,9 @@ fun BrandPlate(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Image(
-            painter = painterResource(R.drawable.autoverse_logo_mark),
+            painter = painterResource(R.drawable.autoverse_brand_mark),
             contentDescription = "AutoVerse",
-            modifier = Modifier.height(logoHeight).width(logoHeight * 40f / 24f),
+            modifier = Modifier.height(logoHeight).width(logoHeight),
         )
         Spacer(Modifier.width(AutoVerseSpacing.xs))
         Text(

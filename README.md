@@ -12,7 +12,7 @@
 
 <p align="center">
   <a href="releases"><img src="https://img.shields.io/badge/platform-Android%206.0%2B%20%28API%2023%29-3DDC84?logo=android&logoColor=white" alt="Platform: Android 6.0+ (API 23)"></a>
-  <img src="https://img.shields.io/badge/release-0.25.1--alignment-orange" alt="Release 0.25.0-theme-engine">
+  <img src="https://img.shields.io/badge/release-0.25.2--real--logo-orange" alt="Release 0.25.0-theme-engine">
   <img src="https://img.shields.io/badge/Kotlin-2.0.21-7F52FF?logo=kotlin&logoColor=white" alt="Kotlin 2.0.21">
   <img src="https://img.shields.io/badge/Jetpack%20Compose-BOM%202024.10.01-4285F4?logo=jetpackcompose&logoColor=white" alt="Jetpack Compose BOM 2024.10.01">
   <img src="https://img.shields.io/badge/unit%20tests-417%20passing-brightgreen" alt="417 unit tests passing">
@@ -67,7 +67,7 @@ AutoVerse replaces the stock home screen with an adaptive, glanceable cockpit: l
 
 Grab the latest signed, R8-minified release APK from the [`releases/`](releases) folder:
 
-**[Download AutoVerse 0.25.1-alignment](https://github.com/itripathiharsh/AutoVerse/raw/main/releases/AutoVerse-0.25.1-alignment-release.apk)** — SHA-256 in [`releases/SHA256SUMS.txt`](releases/SHA256SUMS.txt)
+**[Download AutoVerse 0.25.2-real-logo](https://github.com/itripathiharsh/AutoVerse/raw/main/releases/AutoVerse-0.25.2-real-logo-release.apk)** — SHA-256 in [`releases/SHA256SUMS.txt`](releases/SHA256SUMS.txt)
 
 ### Install
 
@@ -75,7 +75,7 @@ AutoVerse is a home-screen replacement and registers the `HOME` intent. It needs
 
 1. Copy the APK to the device, or sideload it:
    ```powershell
-   adb install AutoVerse-0.25.1-alignment-release.apk
+   adb install AutoVerse-0.25.2-real-logo-release.apk
    ```
 2. Open **Settings → Apps → Default apps → Home app** and select AutoVerse (or press Home and pick it).
 3. The first launch walks you through theme, media-access, location, and voice setup.
@@ -152,7 +152,7 @@ releases/          verified release artifacts (APK + SHA-256)
 
 ## Status
 
-Current release: **0.25.1-alignment** — 417 unit tests passing, signed and R8-minified (~8.2 MB universal APK). The cockpit UI is verified across head-unit and phone viewports with CPU-throttled performance profiling; behaviour on real head-unit hardware (wake word, ELM327 session, GPU headroom) is **unverified until a device pass is done**. Known open work: theme gallery screen for the Compose side, wallpaper picker, and accent variants (see [`docs/theme-system.md`](docs/theme-system.md)).
+Current release: **0.25.2-real-logo** — 417 unit tests passing, signed and R8-minified (~8.2 MB universal APK). The cockpit UI is verified across head-unit and phone viewports with CPU-throttled performance profiling; behaviour on real head-unit hardware (wake word, ELM327 session, GPU headroom) is **unverified until a device pass is done**. Known open work: theme gallery screen for the Compose side, wallpaper picker, and accent variants (see [`docs/theme-system.md`](docs/theme-system.md)).
 
 ## Contributing
 

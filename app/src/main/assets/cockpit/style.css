@@ -249,8 +249,21 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   transition: transform 0.3s var(--ease-spring);
   cursor: pointer;
+}
+
+/* The user's real AutoVerse logo mark (only intentional image asset) */
+.dock-brand-img {
+  width: 36px;
+  height: 36px;
+  display: block;
+  object-fit: contain;
 }
 
 .dock-brand-emblem:hover {
@@ -3672,7 +3685,8 @@ html, body {
   .dock-header {
     margin-bottom: 12px;
   }
-  .dock-brand-emblem svg {
+  .dock-brand-emblem svg,
+  .dock-brand-emblem .dock-brand-img {
     width: 30px;
     height: 30px;
   }
