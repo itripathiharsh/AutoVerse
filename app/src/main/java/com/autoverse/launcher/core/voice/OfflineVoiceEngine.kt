@@ -114,7 +114,9 @@ class OfflineVoiceEngine(
                 if (connection.responseCode !in 200..299) {
                     throw IOException("Model download failed (HTTP ${connection.responseCode})")
                 }
-                val total = connection.contentLengthLong
+                // contentLength is the API-23-compatible form; the model is
+                // small enough that the Int range is never a limit.
+                val total = connection.contentLength.toLong()
                 connection.inputStream.use { input ->
                     zip.outputStream().use { out ->
                         val buffer = ByteArray(64 * 1024)

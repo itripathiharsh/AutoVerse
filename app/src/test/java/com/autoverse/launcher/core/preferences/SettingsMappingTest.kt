@@ -38,7 +38,7 @@ class SettingsMappingTest {
     @Test
     fun `missing stored profile falls back to the conservative default`() {
         assertEquals(AppSettings().profile, profileFromStorage(null))
-        assertEquals(PerformanceProfile.BALANCED, profileFromStorage(null))
+        assertEquals(PerformanceProfile.CONSTRAINED, profileFromStorage(null))
     }
 
     @Test

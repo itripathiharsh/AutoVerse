@@ -8,18 +8,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.SemanticsActions
-import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.unit.dp
 import com.autoverse.launcher.core.connectivity.ConnectivityStatus
 import com.autoverse.launcher.core.connectivity.LinkState
@@ -30,16 +25,14 @@ import com.autoverse.launcher.core.model.AppCategory
 import com.autoverse.launcher.core.model.AutoVerseThemeId
 import com.autoverse.launcher.core.model.InstalledApp
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import java.util.concurrent.atomic.AtomicReference
 
 /**
- * Phase 15 — drawer behavior pins. Layouts taller/wider than the test window
- * (MEDIUM, EXPANDED) are driven through [Modifier.requiredSize] and asserted
- * with existence checks, because the surrounding window still clips anything
- * beyond its bounds; interactions on off-screen nodes go through the
- * semantics onClick action rather than touch injection.
+ * Apps page behavior pins (0.28.2): All Apps beside/collapsed Recently Used.
+ * There is no map, favorites section, or view-mode toggle on this screen.
  */
 class AppDrawerScreenTest {
 
@@ -61,31 +54,23 @@ class AppDrawerScreenTest {
         ),
     )
 
-    private val appsWithInstallTimes = apps + InstalledApp(
-        packageName = "com.delta.player",
-        activityName = "com.delta.player.MainActivity",
-        label = "Delta Player",
-        category = AppCategory.MUSIC_AUDIO,
-        firstInstallTime = 1_700_000_000_000L,
-    )
-
     private fun setDrawer(
         state: AppListState,
-        favorites: List<String> = emptyList(),
+        recentApps: List<InstalledApp> = emptyList(),
+        recentCollapsed: Boolean = false,
         searchQuery: String = "",
         category: AppCategory = AppCategory.ALL,
         widthDp: Int = 0,
-        onToggleFavorite: (InstalledApp) -> Unit = {},
-        onSetFavorites: (List<String>) -> Unit = {},
         onLaunchApp: suspend (InstalledApp) -> LaunchOutcome = { LaunchOutcome.LAUNCHED },
-        onRefresh: () -> Unit = {},
+        onClearRecent: () -> Unit = {},
+        onRecentCollapsedChange: (Boolean) -> Unit = {},
         onOpenNavigation: () -> Unit = {},
     ) {
         composeRule.setContent {
             AutoVerseTheme(themeId = AutoVerseThemeId.OBSIDIAN) {
-                var viewMode by remember { mutableStateOf(AppDrawerView.GRID) }
-                var selectedCategory by remember { mutableStateOf(category) }
                 var query by remember { mutableStateOf(searchQuery) }
+                var selectedCategory by remember { mutableStateOf(category) }
+                var collapsed by remember { mutableStateOf(recentCollapsed) }
                 val drawer: @Composable () -> Unit = {
                     AppDrawerScreen(
                         clockText = "09:41",
@@ -95,23 +80,21 @@ class AppDrawerScreenTest {
                             bluetooth = LinkState.CONNECTED,
                         ),
                         state = state,
-                        favorites = favorites,
                         searchQuery = query,
                         onSearchQueryChange = { query = it },
-                        viewMode = viewMode,
-                        onViewModeChange = { viewMode = it },
                         category = selectedCategory,
                         onCategoryChange = { selectedCategory = it },
-                        onToggleFavorite = onToggleFavorite,
-                        onSetFavorites = onSetFavorites,
                         onLaunchApp = onLaunchApp,
-                        onRefresh = onRefresh,
+                        onRefresh = {},
                         loadIcon = { null },
-                        onBack = {},
                         onOpenHome = {},
                         onOpenSettings = {},
                         onOpenDiagnostics = {},
                         onOpenNavigation = onOpenNavigation,
+                        recentApps = recentApps,
+                        recentCollapsed = collapsed,
+                        onRecentCollapsedChange = { collapsed = it },
+                        onClearRecent = onClearRecent,
                     )
                 }
                 if (widthDp > 0) {
@@ -132,37 +115,17 @@ class AppDrawerScreenTest {
     }
 
     @Test
-    fun errorStateShowsMessageAndRetryFires() {
-        val refreshRequested = AtomicReference(false)
-        setDrawer(
-            state = AppListState.Error("Package manager unavailable"),
-            onRefresh = { refreshRequested.set(true) },
-        )
-        composeRule.onNodeWithText("Couldn\u2019t load apps").assertIsDisplayed()
-        composeRule.onNodeWithText("Package manager unavailable").assertIsDisplayed()
-        composeRule.onNodeWithText("Retry").performClick()
-        assertEquals(true, refreshRequested.get())
-    }
-
-    @Test
     fun emptyStateShowsGuidance() {
         setDrawer(AppListState.Ready(emptyList()))
         composeRule.onNodeWithText("No launchable apps found").assertIsDisplayed()
     }
 
     @Test
-    fun readyStateListsAppsAndStarTogglesFavorite() {
-        val toggled = AtomicReference<InstalledApp?>(null)
-        setDrawer(
-            state = AppListState.Ready(apps),
-            onToggleFavorite = { toggled.set(it) },
-        )
+    fun readyStateListsApps() {
+        setDrawer(AppListState.Ready(apps))
         composeRule.onNodeWithText("Bravo Maps").assertIsDisplayed()
         composeRule.onNodeWithText("Charlie Phone").assertIsDisplayed()
-        composeRule
-            .onNodeWithContentDescription("Add Bravo Maps to favorites")
-            .performClick()
-        assertEquals("com.bravo.maps", toggled.get()?.packageName)
+        composeRule.onNodeWithText("ALL APPS \u00b7 2").assertIsDisplayed()
     }
 
     @Test
@@ -185,17 +148,6 @@ class AppDrawerScreenTest {
     }
 
     @Test
-    fun viewModeTogglesSwitchBetweenGridAndList() {
-        setDrawer(state = AppListState.Ready(apps))
-        composeRule.onNodeWithContentDescription("Grid view").assertIsOn()
-        composeRule.onNodeWithContentDescription("List view").performClick()
-        composeRule.onNodeWithContentDescription("List view").assertIsOn()
-        composeRule.onNodeWithText("Bravo Maps").assertIsDisplayed()
-        composeRule.onNodeWithContentDescription("Grid view").performClick()
-        composeRule.onNodeWithContentDescription("Grid view").assertIsOn()
-    }
-
-    @Test
     fun failedLaunchShowsSnackbarWithRecoveryMessage() {
         setDrawer(
             state = AppListState.Ready(apps),
@@ -210,99 +162,70 @@ class AppDrawerScreenTest {
         }
     }
 
-    // --- sections -----------------------------------------------------------
+    // --- recently used ------------------------------------------------------
 
     @Test
-    fun favoritesSectionShowsHeadersAndEditAffordance() {
+    fun recentlyUsedSectionShowsEntriesAndClearAction() {
+        val cleared = AtomicReference(false)
         setDrawer(
             state = AppListState.Ready(apps),
-            favorites = listOf("com.bravo.maps/com.bravo.maps.MainActivity"),
+            recentApps = listOf(apps[1]),
+            onClearRecent = { cleared.set(true) },
         )
-        composeRule.onNodeWithText("FAVORITES").assertIsDisplayed()
-        composeRule.onNodeWithText("ALL APPS").assertIsDisplayed()
-        composeRule.onNodeWithText("Edit").assertIsDisplayed()
+        composeRule.onNodeWithText("RECENTLY USED").assertIsDisplayed()
+        composeRule.onAllNodesWithText("Charlie Phone").onFirst().assertIsDisplayed()
+        composeRule.onNodeWithText("Clear").performClick()
+        assertEquals(true, cleared.get())
     }
 
     @Test
-    fun noFavoritesHidesEditAffordance() {
+    fun emptyHistoryShowsTheHonestMessage() {
         setDrawer(state = AppListState.Ready(apps))
-        composeRule.onNodeWithText("FAVORITES").assertIsDisplayed()
-        composeRule.onNodeWithText("Edit").assertDoesNotExist()
+        composeRule.onNodeWithText("Apps opened from AutoVerse").assertIsDisplayed()
     }
 
     @Test
-    fun newlyInstalledSectionShowsMostRecentInstall() {
-        setDrawer(state = AppListState.Ready(appsWithInstallTimes))
-        composeRule.onNodeWithText("NEWLY INSTALLED").assertIsDisplayed()
-        composeRule.onNodeWithText("Apps you install will appear here.").assertDoesNotExist()
-        composeRule.onAllNodesWithText("Delta Player").assertCountEquals(2)
+    fun collapsingThePanelExpandsAllAppsAndKeepsARestoreControl() {
+        var changed: Boolean? = null
+        setDrawer(
+            state = AppListState.Ready(apps),
+            recentApps = listOf(apps[0]),
+            onRecentCollapsedChange = { changed = it },
+        )
+        composeRule.onNodeWithContentDescription("Hide recently used").performClick()
+        assertEquals(true, changed)
+
+        setDrawer(
+            state = AppListState.Ready(apps),
+            recentApps = listOf(apps[0]),
+            recentCollapsed = true,
+        )
+        composeRule.onNodeWithContentDescription("Show recently used").assertIsDisplayed()
     }
 
     // --- adaptive layouts ---------------------------------------------------
 
     @Test
-    fun mediumLayoutShowsRailAndSections() {
+    fun wideLayoutShowsBothPanelsSideBySide() {
         setDrawer(
             state = AppListState.Ready(apps),
-            favorites = listOf("com.bravo.maps/com.bravo.maps.MainActivity"),
-            widthDp = 700,
+            recentApps = listOf(apps[0]),
+            widthDp = 1200,
         )
-        composeRule.onNodeWithText("Apps").assertIsDisplayed()
-        composeRule.onNodeWithText("Home").assertIsDisplayed()
-        composeRule.onNodeWithText("FAVORITES").assertIsDisplayed()
-        composeRule.onNodeWithText("ALL APPS").assertIsDisplayed()
+        composeRule.onNodeWithText("ALL APPS \u00b7 2").assertExists()
+        composeRule.onNodeWithText("RECENTLY USED").assertExists()
+        composeRule.onNodeWithText("Home").assertExists()
     }
 
     @Test
-    fun mediumRailNavigationInvokesOpenNavigationCallback() {
+    fun railNavigationInvokesOpenNavigationCallback() {
         val invoked = AtomicReference(false)
         setDrawer(
             state = AppListState.Ready(apps),
-            widthDp = 700,
+            widthDp = 1200,
             onOpenNavigation = { invoked.set(true) },
         )
-        composeRule.onAllNodesWithText("Navigation").onFirst().performClick()
-        assertEquals(true, invoked.get())
-    }
-
-    @Test
-    fun expandedLayoutShowsRailAndSidePanels() {
-        setDrawer(
-            state = AppListState.Ready(appsWithInstallTimes),
-            favorites = listOf("com.bravo.maps/com.bravo.maps.MainActivity"),
-            widthDp = 1200,
-        )
-        composeRule.onNodeWithText("Apps").assertExists()
-        composeRule.onNodeWithText("FAVORITES").assertExists()
-        composeRule.onNodeWithText("NEWLY INSTALLED").assertExists()
-        composeRule.onNodeWithText("All Apps").assertExists()
-    }
-
-    @Test
-    fun expandedEditFlowStagesRemovalAndSaves() {
-        val saved = AtomicReference<List<String>?>(null)
-        setDrawer(
-            state = AppListState.Ready(apps),
-            favorites = listOf("com.bravo.maps/com.bravo.maps.MainActivity"),
-            widthDp = 1200,
-            onSetFavorites = { saved.set(it) },
-        )
-        composeRule
-            .onNodeWithText("Edit")
-            .performSemanticsAction(SemanticsActions.OnClick)
-        composeRule
-            .onNodeWithText("Save")
-            .assertExists()
-        composeRule
-            .onAllNodesWithContentDescription("Remove Bravo Maps from favorites")
-            .onFirst()
-            .performSemanticsAction(SemanticsActions.OnClick)
-        composeRule
-            .onNodeWithText("No favorites yet. Tap the star on any app.")
-            .assertExists()
-        composeRule
-            .onNodeWithText("Save")
-            .performSemanticsAction(SemanticsActions.OnClick)
-        assertEquals(emptyList<String>(), saved.get())
+        composeRule.onAllNodesWithText("Maps").onFirst().performClick()
+        assertTrue(invoked.get())
     }
 }

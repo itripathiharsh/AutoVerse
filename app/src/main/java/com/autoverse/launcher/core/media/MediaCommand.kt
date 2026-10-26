@@ -19,6 +19,17 @@ fun mediaCommandFailureMessage(outcome: MediaCommandOutcome): String = when (out
     MediaCommandOutcome.FAILED -> "Couldn't reach the media app. Try again."
 }
 
+/** PlaybackState.ACTION_SKIP_TO_QUEUE_ITEM (kept literal so JVM tests need no Android stubs). */
+const val ACTION_SKIP_TO_QUEUE_ITEM_FLAG = 1L shl 12
+
+/**
+ * Whether the session advertises queue selection. A missing playback state is
+ * "unknown", so the request is still sent and its real outcome reported; an
+ * explicit action mask without the flag means the player won't honour it.
+ */
+fun queueSelectionSupported(actions: Long?): Boolean =
+    actions == null || actions and ACTION_SKIP_TO_QUEUE_ITEM_FLAG != 0L
+
 /**
  * The play/pause toggle must send the intent that matches what the user
  * sees: pause a session that is playing (or buffering), play otherwise.

@@ -75,6 +75,11 @@ class NavigationPlacesRepository(private val context: Context) {
         }
     }
 
+    /** Forgets every recent destination; saved places are untouched. */
+    suspend fun clearRecents() {
+        context.navigationPlacesDataStore.edit { it.remove(KEY_RECENT_DESTINATIONS) }
+    }
+
     private companion object {
         val KEY_SAVED_PLACES = stringPreferencesKey("saved_places")
         val KEY_RECENT_DESTINATIONS = stringPreferencesKey("recent_destinations")

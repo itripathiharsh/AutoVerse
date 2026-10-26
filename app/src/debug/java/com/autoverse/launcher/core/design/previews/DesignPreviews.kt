@@ -45,10 +45,8 @@ import com.autoverse.launcher.core.design.AutoVerseTheme
 import com.autoverse.launcher.core.design.LocalAutoVerseColors
 import com.autoverse.launcher.core.design.components.AppDockItem
 import com.autoverse.launcher.core.design.components.CockpitCard
-import com.autoverse.launcher.core.design.components.CompactNavigationRow
 import com.autoverse.launcher.core.design.components.KeyValueRow
 import com.autoverse.launcher.core.design.components.MediaCard
-import com.autoverse.launcher.core.design.components.NavigationCard
 import com.autoverse.launcher.core.design.components.PrimaryAction
 import com.autoverse.launcher.core.design.components.SelectRow
 import com.autoverse.launcher.core.design.components.StatusChip
@@ -57,7 +55,6 @@ import com.autoverse.launcher.core.design.components.SwitchRow
 import com.autoverse.launcher.core.design.components.TransportButton
 import com.autoverse.launcher.core.design.components.TransportVariant
 import com.autoverse.launcher.core.design.components.WidgetContainer
-import com.autoverse.launcher.core.design.homeLayoutPolicyFor
 import com.autoverse.launcher.core.design.tokens.AutoVerseBorders
 import com.autoverse.launcher.core.design.tokens.AutoVerseIcons
 import com.autoverse.launcher.core.design.tokens.AutoVerseShapes
@@ -90,12 +87,17 @@ import com.autoverse.launcher.core.performance.DeviceProfile
 import com.autoverse.launcher.core.performance.FrameTimeTracker
 import com.autoverse.launcher.core.performance.PerformanceTier
 import com.autoverse.launcher.feature.apps.AppDrawerScreen
-import com.autoverse.launcher.feature.apps.AppDrawerView
 import com.autoverse.launcher.feature.diagnostics.DiagnosticsScreen
 import com.autoverse.launcher.feature.home.DashboardData
 import com.autoverse.launcher.feature.home.HomeScreenContent
+import com.autoverse.launcher.feature.home.MapsSection
+import com.autoverse.launcher.feature.home.DrivingSection
+import com.autoverse.launcher.core.design.components.MapsLaunchPanel
+import com.autoverse.launcher.core.navigation.MapsStatus
+import com.autoverse.launcher.core.phone.CallUiState
+import com.autoverse.launcher.core.location.GpsStatus
+import com.autoverse.launcher.core.location.SpeedometerData
 import com.autoverse.launcher.feature.home.MediaSection
-import com.autoverse.launcher.feature.home.NavigationSection
 import com.autoverse.launcher.feature.navigation.NavigationScreen
 import com.autoverse.launcher.feature.settings.SettingsScreen
 import kotlin.math.roundToInt
@@ -404,51 +406,25 @@ private fun ComponentGallery() {
             }
         }
 
-        WidgetContainer(title = "NAVIGATION CARD STATES", icon = Icons.Outlined.Speed) {
+        WidgetContainer(title = "MAPS PANEL STATES", icon = Icons.Outlined.Speed) {
             Column(verticalArrangement = Arrangement.spacedBy(AutoVerseSpacing.sm)) {
-                NavigationCard(
-                    resolved = ResolvedNavigationProvider(
-                        provider = NavigationProvider.GoogleMaps,
-                        preferredMissing = false,
-                    ),
-                    modifier = Modifier.height(420.dp),
+                MapsLaunchPanel(
+                    mapsStatus = MapsStatus.INSTALLED,
+                    destinationTargetLabel = "Google Maps",
+                    destinationQuery = "",
+                    onDestinationQueryChange = {},
+                    onNavigate = {},
+                    onOpenMaps = {},
+                    modifier = Modifier.height(380.dp),
                 )
-                NavigationCard(
-                    resolved = ResolvedNavigationProvider(
-                        provider = NavigationProvider.Waze,
-                        preferredMissing = false,
-                    ),
-                    dense = true,
-                    modifier = Modifier.height(220.dp),
-                )
-                NavigationCard(
-                    resolved = ResolvedNavigationProvider(
-                        provider = NavigationProvider.SystemDefault,
-                        preferredMissing = true,
-                    ),
-                    modifier = Modifier.height(420.dp),
-                )
-                NavigationCard(
-                    resolved = ResolvedNavigationProvider(
-                        provider = NavigationProvider.OpenOnly(
-                            packageName = "com.example.nav",
-                            label = "Sample Nav",
-                        ),
-                        preferredMissing = false,
-                    ),
-                    modifier = Modifier.height(340.dp),
-                )
-                CompactNavigationRow(
-                    resolved = ResolvedNavigationProvider(
-                        provider = NavigationProvider.GoogleMaps,
-                        preferredMissing = false,
-                    ),
-                )
-                CompactNavigationRow(
-                    resolved = ResolvedNavigationProvider(
-                        provider = NavigationProvider.SystemDefault,
-                        preferredMissing = true,
-                    ),
+                MapsLaunchPanel(
+                    mapsStatus = MapsStatus.NOT_INSTALLED,
+                    destinationTargetLabel = "System default",
+                    destinationQuery = "99, 99",
+                    onDestinationQueryChange = {},
+                    onNavigate = {},
+                    onOpenMaps = {},
+                    modifier = Modifier.height(380.dp),
                 )
             }
         }
@@ -581,165 +557,65 @@ private val previewMediaActive = MediaUiState.Active(
 
 @Composable
 private fun HomePreview(
-    widthDp: Int,
-    heightDp: Int,
     appearanceMode: AppearanceMode,
     themeId: AutoVerseThemeId = AutoVerseThemeId.OBSIDIAN,
     mediaState: MediaUiState = MediaUiState.NoSession,
-    navigation: NavigationSection = NavigationSection(),
+    mapsStatus: MapsStatus = MapsStatus.INSTALLED,
+    callState: CallUiState = CallUiState.Idle,
 ) {
     AutoVerseTheme(themeId = themeId, appearanceMode = appearanceMode) {
         HomeScreenContent(
             data = previewDashboardData,
-            policy = homeLayoutPolicyFor(widthDp = widthDp, heightDp = heightDp),
-            onOpenSettings = {},
-            onOpenDiagnostics = {},
-            favoriteApps = previewSampleApps.take(3),
             media = MediaSection(state = mediaState),
-            navigation = navigation,
+            maps = MapsSection(status = mapsStatus, recentDestinations = previewRecentDestinations),
+            driving = DrivingSection(
+                speedometerData = SpeedometerData(currentSpeedKmh = 48, isGpsActive = true, gpsStatus = GpsStatus.LIVE),
+                callState = callState,
+                hasCallPermission = callState != CallUiState.Idle,
+            ),
         )
     }
 }
 
-@Preview(name = "Home — Compact (411x891)", widthDp = 411, heightDp = 891)
+@Preview(name = "Home — 720p head unit at 1.5x (853x480)", widthDp = 853, heightDp = 480)
 @Composable
-private fun HomeCompactPreview() {
-    HomePreview(widthDp = 411, heightDp = 891, appearanceMode = AppearanceMode.NIGHT)
+private fun HomeHeadUnitPreview() {
+    HomePreview(appearanceMode = AppearanceMode.NIGHT, mediaState = previewMediaActive)
 }
 
-@Preview(name = "Home — Compact, Day (411x891)", widthDp = 411, heightDp = 891)
+@Preview(name = "Home — 1024x600 head unit (1024x600)", widthDp = 1024, heightDp = 600)
 @Composable
-private fun HomeCompactDayPreview() {
-    HomePreview(widthDp = 411, heightDp = 891, appearanceMode = AppearanceMode.DAY)
+private fun HomeWidePreview() {
+    HomePreview(appearanceMode = AppearanceMode.NIGHT, mediaState = previewMediaActive)
 }
 
-@Preview(name = "Home — Split (800x600)", widthDp = 800, heightDp = 600)
+@Preview(name = "Home — Day (1280x800)", widthDp = 1280, heightDp = 800)
 @Composable
-private fun HomeSplitPreview() {
-    HomePreview(widthDp = 800, heightDp = 600, appearanceMode = AppearanceMode.NIGHT)
+private fun HomeDayPreview() {
+    HomePreview(appearanceMode = AppearanceMode.DAY)
 }
 
-@Preview(name = "Home — Split, Day (800x600)", widthDp = 800, heightDp = 600)
+@Preview(name = "Home — Cobalt, incoming call (1280x800)", widthDp = 1280, heightDp = 800)
 @Composable
-private fun HomeSplitDayPreview() {
-    HomePreview(widthDp = 800, heightDp = 600, appearanceMode = AppearanceMode.DAY)
-}
-
-@Preview(name = "Home — Split, short (800x400)", widthDp = 800, heightDp = 400)
-@Composable
-private fun HomeSplitShortPreview() {
-    HomePreview(widthDp = 800, heightDp = 400, appearanceMode = AppearanceMode.NIGHT)
-}
-
-@Preview(name = "Home — Rail (1280x800)", widthDp = 1280, heightDp = 800)
-@Composable
-private fun HomeRailPreview() {
-    HomePreview(widthDp = 1280, heightDp = 800, appearanceMode = AppearanceMode.NIGHT)
-}
-
-@Preview(name = "Home — Rail, Day (1280x800)", widthDp = 1280, heightDp = 800)
-@Composable
-private fun HomeRailDayPreview() {
-    HomePreview(widthDp = 1280, heightDp = 800, appearanceMode = AppearanceMode.DAY)
-}
-
-@Preview(name = "Home — Rail, Cobalt (1280x800)", widthDp = 1280, heightDp = 800)
-@Composable
-private fun HomeRailCobaltPreview() {
+private fun HomeCallPreview() {
     HomePreview(
-        widthDp = 1280,
-        heightDp = 800,
         appearanceMode = AppearanceMode.NIGHT,
         themeId = AutoVerseThemeId.COBALT,
-    )
-}
-
-@Preview(name = "Home — Rail, Neon Pulse (1280x800)", widthDp = 1280, heightDp = 800)
-@Composable
-private fun HomeRailNeonPulsePreview() {
-    HomePreview(
-        widthDp = 1280,
-        heightDp = 800,
-        appearanceMode = AppearanceMode.NIGHT,
-        themeId = AutoVerseThemeId.NEON_PULSE,
-    )
-}
-
-@Preview(name = "Home — Rail, Atelier (1280x800)", widthDp = 1280, heightDp = 800)
-@Composable
-private fun HomeRailAtelierPreview() {
-    HomePreview(
-        widthDp = 1280,
-        heightDp = 800,
-        appearanceMode = AppearanceMode.NIGHT,
-        themeId = AutoVerseThemeId.ATELIER,
-    )
-}
-
-@Preview(name = "Home — Rail, Apex (1280x800)", widthDp = 1280, heightDp = 800)
-@Composable
-private fun HomeRailApexPreview() {
-    HomePreview(
-        widthDp = 1280,
-        heightDp = 800,
-        appearanceMode = AppearanceMode.NIGHT,
-        themeId = AutoVerseThemeId.APEX,
-    )
-}
-
-@Preview(name = "Home — Rail with active media (1280x800)", widthDp = 1280, heightDp = 800)
-@Composable
-private fun HomeRailMediaPreview() {
-    HomePreview(
-        widthDp = 1280,
-        heightDp = 800,
-        appearanceMode = AppearanceMode.NIGHT,
         mediaState = previewMediaActive,
+        callState = CallUiState.Incoming(number = null),
     )
 }
 
-@Preview(name = "Home — Minimal (800x220)", widthDp = 800, heightDp = 220)
+@Preview(name = "Home — Maps not installed (1280x800)", widthDp = 1280, heightDp = 800)
 @Composable
-private fun HomeMinimalPreview() {
-    HomePreview(widthDp = 800, heightDp = 220, appearanceMode = AppearanceMode.NIGHT)
+private fun HomeMapsMissingPreview() {
+    HomePreview(appearanceMode = AppearanceMode.NIGHT, mapsStatus = MapsStatus.NOT_INSTALLED)
 }
 
-@Preview(name = "Home — Minimal, Day (800x220)", widthDp = 800, heightDp = 220)
+@Preview(name = "Home — Portrait phone (411x891)", widthDp = 411, heightDp = 891)
 @Composable
-private fun HomeMinimalDayPreview() {
-    HomePreview(widthDp = 800, heightDp = 220, appearanceMode = AppearanceMode.DAY)
-}
-
-@Preview(name = "Home — Rail, Google Maps selected (1280x800)", widthDp = 1280, heightDp = 800)
-@Composable
-private fun HomeRailGoogleMapsPreview() {
-    HomePreview(
-        widthDp = 1280,
-        heightDp = 800,
-        appearanceMode = AppearanceMode.NIGHT,
-        navigation = NavigationSection(
-            resolved = ResolvedNavigationProvider(
-                provider = NavigationProvider.GoogleMaps,
-                preferredMissing = false,
-            ),
-        ),
-    )
-}
-
-@Preview(name = "Home — Rail, preferred nav app missing (1280x800)", widthDp = 1280, heightDp = 800)
-@Composable
-private fun HomeRailNavigationMissingPreview() {
-    HomePreview(
-        widthDp = 1280,
-        heightDp = 800,
-        appearanceMode = AppearanceMode.NIGHT,
-        navigation = NavigationSection(
-            resolved = ResolvedNavigationProvider(
-                provider = NavigationProvider.SystemDefault,
-                preferredMissing = true,
-            ),
-        ),
-    )
+private fun HomePortraitPreview() {
+    HomePreview(appearanceMode = AppearanceMode.NIGHT, mediaState = previewMediaActive)
 }
 
 // ---------------------------------------------------------------------------
@@ -749,34 +625,31 @@ private fun HomeRailNavigationMissingPreview() {
 @Composable
 private fun DrawerPreview(
     state: AppListState,
-    favorites: List<String> = emptyList(),
     appearanceMode: AppearanceMode = AppearanceMode.NIGHT,
     themeId: AutoVerseThemeId = AutoVerseThemeId.OBSIDIAN,
-    initialView: AppDrawerView = AppDrawerView.GRID,
     initialCategory: AppCategory = AppCategory.ALL,
+    recentCollapsed: Boolean = false,
+    recentApps: List<InstalledApp> = previewSampleApps.take(3),
 ) {
-    var viewMode by remember { mutableStateOf(initialView) }
     var category by remember { mutableStateOf(initialCategory) }
     var query by remember { mutableStateOf("") }
+    var collapsed by remember { mutableStateOf(recentCollapsed) }
     AutoVerseTheme(themeId = themeId, appearanceMode = appearanceMode) {
         AppDrawerScreen(
             clockText = previewDashboardData.clockText,
             dateText = previewDashboardData.dateText,
             connectivity = previewDashboardData.connectivity,
             state = state,
-            favorites = favorites,
             searchQuery = query,
             onSearchQueryChange = { query = it },
-            viewMode = viewMode,
-            onViewModeChange = { viewMode = it },
             category = category,
             onCategoryChange = { category = it },
-            onToggleFavorite = {},
-            onSetFavorites = {},
             onLaunchApp = { LaunchOutcome.LAUNCHED },
+            recentApps = recentApps,
+            recentCollapsed = collapsed,
+            onRecentCollapsedChange = { collapsed = it },
             onRefresh = {},
             loadIcon = { null },
-            onBack = {},
             onOpenHome = {},
             onOpenSettings = {},
             onOpenDiagnostics = {},
@@ -785,106 +658,50 @@ private fun DrawerPreview(
     }
 }
 
-@Preview(name = "Apps — Drawer (1280x800)", widthDp = 1280, heightDp = 800)
+@Preview(name = "Apps — 720p head unit at 1.5x (853x480)", widthDp = 853, heightDp = 480)
 @Composable
-private fun AppDrawerRailPreview() {
+private fun AppDrawerHeadUnitPreview() {
+    DrawerPreview(state = AppListState.Ready(previewSampleApps))
+}
+
+@Preview(name = "Apps — Recently Used collapsed (1280x800)", widthDp = 1280, heightDp = 800)
+@Composable
+private fun AppDrawerCollapsedPreview() {
+    DrawerPreview(state = AppListState.Ready(previewSampleApps), recentCollapsed = true)
+}
+
+@Preview(name = "Apps — Day, no history yet (1280x800)", widthDp = 1280, heightDp = 800)
+@Composable
+private fun AppDrawerDayPreview() {
     DrawerPreview(
         state = AppListState.Ready(previewSampleApps),
-        favorites = previewSampleApps.take(2).map { it.key },
+        appearanceMode = AppearanceMode.DAY,
+        recentApps = emptyList(),
     )
 }
 
-@Preview(name = "Apps — Drawer (411x891)", widthDp = 411, heightDp = 891)
+@Preview(name = "Apps — Portrait phone (411x891)", widthDp = 411, heightDp = 891)
 @Composable
 private fun AppDrawerCompactPreview() {
-    DrawerPreview(
-        state = AppListState.Ready(previewSampleApps),
-        favorites = previewSampleApps.take(2).map { it.key },
-    )
+    DrawerPreview(state = AppListState.Ready(previewSampleApps))
 }
 
-@Preview(name = "Apps — Drawer, Day (1280x800)", widthDp = 1280, heightDp = 800)
-@Composable
-private fun AppDrawerRailDayPreview() {
-    DrawerPreview(
-        state = AppListState.Ready(previewSampleApps),
-        favorites = previewSampleApps.take(2).map { it.key },
-        appearanceMode = AppearanceMode.DAY,
-    )
-}
-
-@Preview(name = "Apps — Drawer Loading (1280x800)", widthDp = 1280, heightDp = 800)
+@Preview(name = "Apps — Loading (1280x800)", widthDp = 1280, heightDp = 800)
 @Composable
 private fun AppDrawerLoadingPreview() {
     DrawerPreview(state = AppListState.Loading)
 }
 
-@Preview(name = "Apps — Drawer Empty (1280x800)", widthDp = 1280, heightDp = 800)
-@Composable
-private fun AppDrawerEmptyPreview() {
-    DrawerPreview(state = AppListState.Ready(emptyList()))
-}
-
-@Preview(name = "Apps — Drawer Error (1280x800)", widthDp = 1280, heightDp = 800)
+@Preview(name = "Apps — Error (1280x800)", widthDp = 1280, heightDp = 800)
 @Composable
 private fun AppDrawerErrorPreview() {
     DrawerPreview(state = AppListState.Error("Package manager unavailable"))
 }
 
-@Preview(name = "Apps — Drawer, Neon Pulse (1280x800)", widthDp = 1280, heightDp = 800)
-@Composable
-private fun AppDrawerNeonPulsePreview() {
-    DrawerPreview(
-        state = AppListState.Ready(previewSampleApps),
-        favorites = previewSampleApps.take(2).map { it.key },
-        themeId = AutoVerseThemeId.NEON_PULSE,
-    )
-}
-
-@Preview(name = "Apps — Drawer, Atelier (1280x800)", widthDp = 1280, heightDp = 800)
-@Composable
-private fun AppDrawerAtelierPreview() {
-    DrawerPreview(
-        state = AppListState.Ready(previewSampleApps),
-        favorites = previewSampleApps.take(2).map { it.key },
-        themeId = AutoVerseThemeId.ATELIER,
-    )
-}
-
-@Preview(name = "Apps — Drawer, Apex (1280x800)", widthDp = 1280, heightDp = 800)
-@Composable
-private fun AppDrawerApexPreview() {
-    DrawerPreview(
-        state = AppListState.Ready(previewSampleApps),
-        favorites = previewSampleApps.take(2).map { it.key },
-        themeId = AutoVerseThemeId.APEX,
-    )
-}
-
-@Preview(name = "Apps — Drawer list view (1280x800)", widthDp = 1280, heightDp = 800)
-@Composable
-private fun AppDrawerListPreview() {
-    DrawerPreview(
-        state = AppListState.Ready(previewSampleApps),
-        favorites = previewSampleApps.take(2).map { it.key },
-        initialView = AppDrawerView.LIST,
-    )
-}
-
-@Preview(name = "Apps — Drawer, no favorites (1280x800)", widthDp = 1280, heightDp = 800)
-@Composable
-private fun AppDrawerNoFavoritesPreview() {
-    DrawerPreview(state = AppListState.Ready(previewSampleApps))
-}
-
-@Preview(name = "Apps — Drawer, filtered empty (1280x800)", widthDp = 1280, heightDp = 800)
+@Preview(name = "Apps — Filtered empty (1280x800)", widthDp = 1280, heightDp = 800)
 @Composable
 private fun AppDrawerFilteredEmptyPreview() {
-    DrawerPreview(
-        state = AppListState.Ready(previewSampleApps),
-        favorites = previewSampleApps.take(2).map { it.key },
-        initialCategory = AppCategory.VIDEO,
-    )
+    DrawerPreview(state = AppListState.Ready(previewSampleApps), initialCategory = AppCategory.VIDEO)
 }
 
 // ---------------------------------------------------------------------------
@@ -933,20 +750,11 @@ private fun SettingsPreview(
             dateText = previewDashboardData.dateText,
             connectivity = previewDashboardData.connectivity,
             dashboardPreview = { modifier ->
-                BoxWithConstraints(modifier = modifier) {
-                    HomeScreenContent(
-                        data = previewDashboardData,
-                        policy = homeLayoutPolicyFor(
-                            widthDp = maxWidth.value.roundToInt(),
-                            heightDp = maxHeight.value.roundToInt(),
-                        ),
-                        onOpenSettings = {},
-                        onOpenDiagnostics = {},
-                        contentInsets = WindowInsets(0, 0, 0, 0),
-                        favoriteApps = previewSampleApps.take(3),
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                }
+                HomeScreenContent(
+                    data = previewDashboardData,
+                    contentInsets = WindowInsets(0, 0, 0, 0),
+                    modifier = modifier.fillMaxSize(),
+                )
             },
             onResetSettings = {},
         )
@@ -1213,28 +1021,30 @@ private fun NavigationPagePreview(
     appearanceMode: AppearanceMode,
     themeId: AutoVerseThemeId = AutoVerseThemeId.OBSIDIAN,
     query: String = "sample",
-    placesPanelVisible: Boolean = true,
     savedPlaces: List<SavedPlace> = previewSavedPlaces,
     recentDestinations: List<RecentDestination> = previewRecentDestinations,
+    placesCollapsed: Boolean = false,
 ) {
+    var collapsed by remember { mutableStateOf(placesCollapsed) }
     AutoVerseTheme(themeId = themeId, appearanceMode = appearanceMode) {
         NavigationScreen(
-            resolved = ResolvedNavigationProvider(
-                provider = NavigationProvider.GoogleMaps,
-                preferredMissing = false,
-            ),
+            clockText = previewDashboardData.clockText,
+            dateText = previewDashboardData.dateText,
+            connectivity = previewDashboardData.connectivity,
+            mapsStatus = MapsStatus.INSTALLED,
+            destinationTargetLabel = "Google Maps",
             savedPlaces = savedPlaces,
             recentDestinations = recentDestinations,
             query = query,
             onQueryChange = {},
-            placesPanelVisible = placesPanelVisible,
-            onTogglePlacesPanel = {},
-            onNavigate = { NavigationOutcome.OPENED },
-            onOpenNavigationApp = { NavigationOutcome.OPENED },
-            onSavePlace = { _, _ -> },
+            onNavigate = { NavigationOutcome.REQUESTED },
+            onOpenGoogleMaps = { NavigationOutcome.REQUESTED },
+            onSavePlace = { _, _ -> true },
             onRemovePlace = {},
-            onChangeProvider = {},
-            onBack = {},
+            onClearRecents = {},
+            placesCollapsed = collapsed,
+            onPlacesCollapsedChange = { collapsed = it },
+            onOpenHome = {},
         )
     }
 }
@@ -1249,15 +1059,6 @@ private fun NavigationPageWidePreview() {
 @Composable
 private fun NavigationPageWideDayPreview() {
     NavigationPagePreview(appearanceMode = AppearanceMode.DAY)
-}
-
-@Preview(name = "Navigation — Wide, panel hidden (1280x800)", widthDp = 1280, heightDp = 800)
-@Composable
-private fun NavigationPageWidePanelHiddenPreview() {
-    NavigationPagePreview(
-        appearanceMode = AppearanceMode.NIGHT,
-        placesPanelVisible = false,
-    )
 }
 
 @Preview(name = "Navigation — Wide, no places yet (1280x800)", widthDp = 1280, heightDp = 800)
@@ -1280,10 +1081,16 @@ private fun NavigationPageWideInvalidCoordinatesPreview() {
     )
 }
 
-@Preview(name = "Navigation — Medium (800x600)", widthDp = 800, heightDp = 600)
+@Preview(name = "Maps — 720p head unit at 1.5x (853x480)", widthDp = 853, heightDp = 480)
 @Composable
-private fun NavigationPageMediumPreview() {
+private fun NavigationPageHeadUnitPreview() {
     NavigationPagePreview(appearanceMode = AppearanceMode.NIGHT)
+}
+
+@Preview(name = "Maps — Destinations collapsed (1280x800)", widthDp = 1280, heightDp = 800)
+@Composable
+private fun NavigationPageCollapsedPreview() {
+    NavigationPagePreview(appearanceMode = AppearanceMode.NIGHT, placesCollapsed = true)
 }
 
 @Preview(name = "Navigation — Compact (411x891)", widthDp = 411, heightDp = 891)

@@ -30,10 +30,10 @@ enum class AppearanceMode(val displayName: String) {
 data class AppSettings(
     val themeId: AutoVerseThemeId = AutoVerseThemeId.COBALT,
     val appearanceMode: AppearanceMode = AppearanceMode.SYSTEM,
-    val reducedMotion: Boolean = false,
-    val profile: PerformanceProfile = PerformanceProfile.BALANCED,
+    val reducedMotion: Boolean = true,
+    val profile: PerformanceProfile = PerformanceProfile.CONSTRAINED,
     /** Phase 9 switch: runs the dashboard with the Constrained workload without changing the profile. */
-    val preferSmoothness: Boolean = false,
+    val preferSmoothness: Boolean = true,
     val clock24h: Boolean = true,
     /**
      * Phase 16 — user text scale applied on top of the system font scale.
@@ -41,7 +41,16 @@ data class AppSettings(
      * layout-engine rules stay valid; 1.0f means "system size only".
      */
     val textScale: Float = 1.0f,
-    val navigationPackage: String? = null,
+    /**
+     * Google Maps is the default handoff target (official intents, no API
+     * key). A stored preference overrides this; when Maps is not installed
+     * the resolver falls back to the system geo chooser and the UI says so.
+     */
+    val navigationPackage: String? = "com.google.android.apps.maps",
+    /** Apps page: the 30% Recently Used panel is collapsed and All Apps uses the width. */
+    val appsRecentCollapsed: Boolean = false,
+    /** Maps page: the 30% destinations panel is collapsed and the map region uses the width. */
+    val mapsPlacesCollapsed: Boolean = false,
     /** Premium entitlement (0.21.0). Local flag for now; Play Billing plugs into this. */
     val premiumUnlocked: Boolean = false,
     /** Tier 1: false until the first-run onboarding finishes. */

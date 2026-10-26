@@ -55,9 +55,9 @@ class PerformanceSpecTest {
     }
 
     @Test
-    fun `default spec is balanced`() {
-        assertEquals(PerformanceSpec.Balanced, PerformanceSpec.Default)
-        assertEquals(PerformanceProfile.BALANCED, PerformanceSpec.Default.profile)
+    fun `default spec is constrained`() {
+        assertEquals(PerformanceSpec.Constrained, PerformanceSpec.Default)
+        assertEquals(PerformanceProfile.CONSTRAINED, PerformanceSpec.Default.profile)
     }
 
     @Test

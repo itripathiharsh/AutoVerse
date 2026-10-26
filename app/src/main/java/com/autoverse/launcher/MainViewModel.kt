@@ -26,25 +26,38 @@ import com.autoverse.launcher.core.launcher.AppListState
 import com.autoverse.launcher.core.launcher.AppRepository
 import com.autoverse.launcher.core.launcher.FavoritesRepository
 import com.autoverse.launcher.core.launcher.LaunchOutcome
+import com.autoverse.launcher.core.launcher.RecentAppsRepository
 import com.autoverse.launcher.core.launcher.classifyLaunchFailure
+import com.autoverse.launcher.core.phone.CallStateMonitor
+import com.autoverse.launcher.core.phone.CallUiState
 import com.autoverse.launcher.core.media.MediaCommand
 import com.autoverse.launcher.core.media.MediaCommandOutcome
 import com.autoverse.launcher.core.media.MediaSessionRepository
 import com.autoverse.launcher.core.media.MediaUiState
 import com.autoverse.launcher.core.media.SystemMediaSessionRepository
+import com.autoverse.launcher.core.location.SpeedometerData
+import com.autoverse.launcher.core.location.SpeedometerManager
 import com.autoverse.launcher.core.media.mediaCommandFailureMessage
 import com.autoverse.launcher.core.model.AppSettings
+import com.autoverse.launcher.core.obd.ObdAdapter
 import com.autoverse.launcher.core.obd.ObdConnectionState
+import com.autoverse.launcher.core.obd.ObdDtcState
 import com.autoverse.launcher.core.obd.SystemObdRepository
 import com.autoverse.launcher.core.sound.ThemeSoundManager
 import com.autoverse.launcher.core.voice.OfflineVoiceEngine
 import com.autoverse.launcher.core.voice.OfflineVoiceState
+import com.autoverse.launcher.core.weather.WeatherRepository
+import com.autoverse.launcher.core.weather.WeatherUiState
 import com.autoverse.launcher.core.model.AppearanceMode
 import com.autoverse.launcher.core.model.AutoVerseThemeId
 import com.autoverse.launcher.core.model.InstalledApp
 import com.autoverse.launcher.core.model.PerformanceProfile
+import com.autoverse.launcher.core.navigation.MapsForegroundVerdict
+import com.autoverse.launcher.core.navigation.MapsStatus
 import com.autoverse.launcher.core.navigation.NavigationDestination
 import com.autoverse.launcher.core.navigation.NavigationOutcome
+import com.autoverse.launcher.core.navigation.mapsStatusOf
+import com.autoverse.launcher.core.navigation.providerForPackage
 import com.autoverse.launcher.core.navigation.NavigationPlacesRepository
 import com.autoverse.launcher.core.navigation.NavigationProvider
 import com.autoverse.launcher.core.navigation.NavigationRepository
@@ -88,10 +101,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val settingsRepository = SettingsRepository(application)
     private val appRepository = AppRepository(application)
     private val favoritesRepository = FavoritesRepository(application)
+    private val recentAppsRepository = RecentAppsRepository(application)
     private val navigationPlacesRepository = NavigationPlacesRepository(application)
     private val mediaRepository: MediaSessionRepository = SystemMediaSessionRepository(application)
     private val navigationRepository: NavigationRepository = SystemNavigationRepository(application)
     private val obdRepository = SystemObdRepository(application)
+    private val callStateMonitor = CallStateMonitor(application)
     private val connectivityMonitor = ConnectivityMonitor(application)
     private val systemSampler = SystemSampler(application)
 
@@ -180,11 +195,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }.stateIn(
             scope = viewModelScope,
             started = SharingStarted.Eagerly,
-            initialValue = ResolvedNavigationProvider(
-                provider = NavigationProvider.SystemDefault,
-                preferredMissing = false,
-            ),
+            initialValue = resolveNavigationProvider(AppSettings().navigationPackage, emptyList()),
         )
+
+    /** Whether Google Maps is installed, as of the last provider discovery. */
+    val mapsStatus: StateFlow<MapsStatus> = _navigationProviders
+        .map(::mapsStatusOf)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, MapsStatus.UNKNOWN)
 
     /**
      * Dashboard clock. Balanced/Enhanced tick every second; the Constrained
@@ -254,6 +271,32 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
+    /**
+     * Apps launched through AutoVerse, most recent first. Resolution waits
+     * for the app list so keys map to real, installed applications; stale
+     * keys (uninstalled apps) simply do not resolve.
+     */
+    val recentApps: StateFlow<List<InstalledApp>> =
+        combine(_appListState, recentAppsRepository.recentKeys) { listState, keys ->
+            if (listState is AppListState.Ready) {
+                val byKey = listState.apps.associateBy { it.key }
+                keys.mapNotNull { byKey[it] }
+            } else {
+                emptyList()
+            }
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    // ---- Incoming-call panel (Home side region) ----
+    val callState: StateFlow<CallUiState> = callStateMonitor.callState
+
+    val hasCallPermission: Boolean
+        get() = callStateMonitor.hasReadPhoneStatePermission
+
+    /** Starts callback-driven call observation; only while Home is visible. */
+    fun startCallMonitoring() = callStateMonitor.start()
+
+    fun stopCallMonitoring() = callStateMonitor.stop()
+
     /** Phase 18 — locally saved places, newest first. Never leaves the device. */
     val savedPlaces: StateFlow<List<SavedPlace>> = navigationPlacesRepository.savedPlaces
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
@@ -263,22 +306,59 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         navigationPlacesRepository.recentDestinations
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    // ---- Tier 2: live engine data (OBD over Bluetooth ELM327) ----
+    // ---- GPS Speedometer & Trip Tracker ----
+    private val speedometerManager = SpeedometerManager(application)
+    val speedometerData: StateFlow<SpeedometerData> = speedometerManager.speedometerData
+
+    fun startSpeedometer() = speedometerManager.start()
+    fun stopSpeedometer() = speedometerManager.stop()
+    fun resetTrip() = speedometerManager.resetTrip()
+
+    // ---- Weather ----
+    private val weatherRepository = WeatherRepository()
+    val weatherState: StateFlow<WeatherUiState> = weatherRepository.weatherState
+
+    fun refreshWeather(force: Boolean = false) {
+        val loc = speedometerData.value
+        viewModelScope.launch {
+            weatherRepository.updateWeather(loc.latitude, loc.longitude, force)
+        }
+    }
+
+    // ---- Live vehicle data (OBD over Bluetooth ELM327) ----
 
     private val _obdState = MutableStateFlow<ObdConnectionState>(ObdConnectionState.Disconnected)
-
-    /** Live OBD connection state; sampled PIDs ride inside [ObdConnectionState.Connected]. */
     val obdState: StateFlow<ObdConnectionState> = _obdState.asStateFlow()
 
+    private val _obdPairedAdapters = MutableStateFlow<List<ObdAdapter>>(emptyList())
+    val obdPairedAdapters: StateFlow<List<ObdAdapter>> = _obdPairedAdapters.asStateFlow()
+
+    private val _obdDtcState = MutableStateFlow<ObdDtcState>(ObdDtcState.Idle)
+    val obdDtcState: StateFlow<ObdDtcState> = _obdDtcState.asStateFlow()
+
+    private var pendingDtcRequest = false
     private var obdJob: Job? = null
     private var obdStop = false
 
+    fun refreshObdAdapters() {
+        _obdPairedAdapters.value = obdRepository.listPairedAdapters()
+    }
+
+    fun requestDtcs() {
+        if (_obdState.value is ObdConnectionState.Connected) {
+            _obdDtcState.value = ObdDtcState.Reading
+            pendingDtcRequest = true
+        } else {
+            _obdDtcState.value = ObdDtcState.Unavailable("Connect to OBD adapter first")
+        }
+    }
+
     /**
-     * Starts a polling session against the first bonded ELM327 adapter.
+     * Starts a polling session against the specified or first bonded ELM327 adapter.
      * Requires BLUETOOTH_CONNECT on API 31+; surfaces the permission case
      * instead of crashing. Never fabricates readings — see ObdProtocol.
      */
-    fun connectObd() {
+    fun connectObd(deviceAddress: String? = null) {
         if (obdJob?.isActive == true) return
         if (!obdRepository.hasConnectPermission) {
             _obdState.value = ObdConnectionState.PermissionRequired
@@ -289,8 +369,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
         obdStop = false
-        var deviceName = obdRepository.findPairedAdapter() ?: "OBD adapter"
+        var deviceName = if (deviceAddress != null) {
+            _obdPairedAdapters.value.firstOrNull { it.address == deviceAddress }?.name ?: "OBD adapter"
+        } else {
+            obdRepository.findPairedAdapter() ?: "OBD adapter"
+        }
         _obdState.value = ObdConnectionState.Connecting(deviceName)
+        _obdDtcState.value = ObdDtcState.Idle
+        pendingDtcRequest = false
+
         obdJob = viewModelScope.launch {
             try {
                 obdRepository.runSession(
@@ -305,6 +392,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         _obdState.value = ObdConnectionState.Connected(deviceName, sample)
                     },
                     shouldStop = { obdStop },
+                    deviceAddress = deviceAddress,
+                    consumeDtcRequest = {
+                        val req = pendingDtcRequest
+                        pendingDtcRequest = false
+                        req
+                    },
+                    onDtcs = { dtcs ->
+                        _obdDtcState.value = if (dtcs != null) {
+                            ObdDtcState.Codes(dtcs)
+                        } else {
+                            ObdDtcState.Unavailable("ECU did not return diagnostic codes")
+                        }
+                    },
                 )
                 _obdState.value = ObdConnectionState.Disconnected
             } catch (cancellation: CancellationException) {
@@ -359,11 +459,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun onAppForeground() {
         appForeground = true
+        speedometerManager.start()
+        refreshObdAdapters()
         applyOfflineVoice(enabled = settings.value.offlineVoiceEnabled, micGranted = null)
     }
 
     fun onAppBackground() {
         appForeground = false
+        speedometerManager.stop()
         if (settings.value.offlineVoiceEnabled) {
             offlineVoiceEngine.stop()
             _offlineVoiceState.value = OfflineVoiceState.Disabled
@@ -466,6 +569,32 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { settingsRepository.setTextScale(scale) }
     }
 
+    /** Apps page: collapse or restore the Recently Used panel (persisted). */
+    fun setAppsRecentCollapsed(collapsed: Boolean) {
+        viewModelScope.launch { settingsRepository.setAppsRecentCollapsed(collapsed) }
+    }
+
+    /** Maps page: collapse or restore the destinations panel (persisted). */
+    fun setMapsPlacesCollapsed(collapsed: Boolean) {
+        viewModelScope.launch { settingsRepository.setMapsPlacesCollapsed(collapsed) }
+    }
+
+    /** Forgets AutoVerse's own app-launch history. */
+    fun clearRecentApps() {
+        viewModelScope.launch {
+            recentAppsRepository.clear()
+            diagnosticLog.record(DiagnosticLevel.INFO, "Recently used apps cleared")
+        }
+    }
+
+    /** Forgets recent destinations; saved places stay. */
+    fun clearRecentDestinations() {
+        viewModelScope.launch {
+            navigationPlacesRepository.clearRecents()
+            diagnosticLog.record(DiagnosticLevel.INFO, "Recent destinations cleared")
+        }
+    }
+
     fun setNavigationPackage(packageName: String?) {
         viewModelScope.launch {
             settingsRepository.setNavigationPackage(packageName)
@@ -494,6 +623,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** First-load trigger; safe to call on every composition start. */
     fun ensureAppsLoaded() {
         if (_appListState.value is AppListState.Loading) refreshApps()
+    }
+
+    private var lastAppScanElapsedMs = 0L
+
+    /**
+     * Resume-time refresh: package broadcasts only reach AutoVerse while it is
+     * alive, so an app installed while another app was in front is picked up
+     * here. Bounded to one scan per minute so resumes never rescan in a loop.
+     */
+    fun refreshAppsIfStale() {
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (now - lastAppScanElapsedMs >= APP_RESCAN_INTERVAL_MS && refreshJob?.isActive != true) {
+            refreshApps()
+        }
     }
 
     /**
@@ -528,6 +671,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return false
         }
         _appListState.value = AppListState.Ready(apps)
+        lastAppScanElapsedMs = android.os.SystemClock.elapsedRealtime()
         diagnosticLog.record(DiagnosticLevel.INFO, "App list loaded — ${apps.size} apps")
         favoritesRepository.pruneStale(apps.asSequence().map { it.key }.toHashSet())
         _navigationProviders.value = try {
@@ -557,11 +701,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      * destination text are replaced, not stacked. Saved entries are
      * user-created only and stay local.
      */
-    fun saveSavedPlace(label: String, destination: NavigationDestination) {
-        viewModelScope.launch {
-            navigationPlacesRepository.savePlace(label, destination)
-            diagnosticLog.record(DiagnosticLevel.INFO, "Saved place added")
-        }
+    suspend fun saveSavedPlace(label: String, destination: NavigationDestination): Boolean = try {
+        navigationPlacesRepository.savePlace(label, destination)
+        diagnosticLog.record(DiagnosticLevel.INFO, "Saved place added")
+        true
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        diagnosticLog.record(DiagnosticLevel.WARN, "A place could not be saved")
+        false
     }
 
     /** Phase 18 — removes [place] from the saved list. */
@@ -589,7 +737,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         } catch (failure: Throwable) {
             classifyLaunchFailure(failure)
         }
-        if (outcome == LaunchOutcome.NOT_FOUND) {
+        if (outcome == LaunchOutcome.LAUNCHED) {
+            // Bounded local history of AutoVerse-initiated launches only.
+            recentAppsRepository.record(app.key)
+        } else if (outcome == LaunchOutcome.NOT_FOUND) {
             diagnosticLog.record(
                 DiagnosticLevel.WARN,
                 "An app was missing; its favorite entry was removed",
@@ -604,38 +755,53 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     suspend fun loadAppIcon(app: InstalledApp): ImageBitmap? = appRepository.loadIcon(app)
 
+    /** The app typed destinations go to, resolved from the stored preference at tap time. */
+    val destinationTarget: NavigationProvider
+        get() = providerForPackage(settings.value.navigationPackage)
+
     /**
-     * Hands [destination] to the effective navigation provider. Failures come
-     * back as outcomes so the caller can explain them; nothing is thrown.
-     * Failure events keep the user-facing wording and carry no user content.
-     * Phase 18: a handoff that actually opened records the destination in the
-     * local recents list — attempts that failed never do.
+     * Hands [destination] to the preferred navigation app (Google Maps unless
+     * the user chose another). The provider comes from the stored preference
+     * at tap time — never from the discovery list, which may still be empty —
+     * and the repository re-checks the real install state before launching.
+     * A destination is recorded as recent only when Android accepted the request.
      */
     suspend fun navigateToDestination(destination: NavigationDestination): NavigationOutcome {
-        val resolved = navigationProvider.value
-        val outcome = navigationRepository.launch(destination, resolved.provider)
-        if (outcome == NavigationOutcome.OPENED) {
+        val provider = destinationTarget
+        val outcome = navigationRepository.launch(destination, provider)
+        recordLaunchOutcome(provider.label, outcome)
+        if (outcome == NavigationOutcome.REQUESTED) {
             navigationPlacesRepository.recordRecent(destination)
-        } else {
-            diagnosticLog.record(
-                DiagnosticLevel.WARN,
-                navigationFailureMessage(resolved.provider.label, outcome),
-            )
         }
         return outcome
     }
 
-    /** Opens the effective navigation target without setting a destination. */
-    suspend fun openNavigationApp(): NavigationOutcome {
-        val resolved = navigationProvider.value
-        val outcome = navigationRepository.launch(null, resolved.provider)
-        if (outcome != NavigationOutcome.OPENED) {
-            diagnosticLog.record(
-                DiagnosticLevel.WARN,
-                navigationFailureMessage(resolved.provider.label, outcome),
-            )
-        }
+    /** "Open Google Maps" always means Google Maps, whatever the destination preference is. */
+    suspend fun openGoogleMaps(): NavigationOutcome {
+        val outcome = navigationRepository.launch(null, NavigationProvider.GoogleMaps)
+        recordLaunchOutcome(NavigationProvider.GoogleMaps.label, outcome)
         return outcome
+    }
+
+    private fun recordLaunchOutcome(label: String, outcome: NavigationOutcome) {
+        if (outcome == NavigationOutcome.REQUESTED) {
+            diagnosticLog.record(DiagnosticLevel.INFO, "$label launch requested")
+        } else {
+            diagnosticLog.record(DiagnosticLevel.WARN, navigationFailureMessage(label, outcome))
+        }
+    }
+
+    /** What the lifecycle showed after a requested launch; recorded for diagnostics. */
+    fun recordLaunchVerdict(label: String, verdict: MapsForegroundVerdict) {
+        val (level, message) = when (verdict) {
+            MapsForegroundVerdict.LEFT_AUTOVERSE ->
+                DiagnosticLevel.INFO to "$label came to the front (AutoVerse paused)"
+            MapsForegroundVerdict.STAYED_ON_AUTOVERSE ->
+                DiagnosticLevel.WARN to "$label launch was accepted but AutoVerse stayed in front"
+            MapsForegroundVerdict.UNKNOWN_MULTI_WINDOW ->
+                DiagnosticLevel.INFO to "$label launch requested in split-screen; visibility not confirmed"
+        }
+        diagnosticLog.record(level, message)
     }
 
     /** Re-reads session access and state; safe to call on every resume. */
@@ -720,6 +886,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      */
     suspend fun sendMediaCommand(command: MediaCommand): MediaCommandOutcome {
         val outcome = mediaRepository.send(command)
+        if (outcome != MediaCommandOutcome.SENT) {
+            diagnosticLog.record(
+                if (outcome == MediaCommandOutcome.ACCESS_LOST) {
+                    DiagnosticLevel.ERROR
+                } else {
+                    DiagnosticLevel.WARN
+                },
+                mediaCommandFailureMessage(outcome),
+            )
+            refreshMediaSession()
+        }
+        return outcome
+    }
+
+    /**
+     * Asks the featured player to jump to a queue item. Failure handling
+     * mirrors [sendMediaCommand]; NOT_SUPPORTED/FAILED surface the same
+     * snackbar copy so unsupported players degrade gracefully.
+     */
+    suspend fun skipMediaToQueue(queueId: Long): MediaCommandOutcome {
+        val outcome = mediaRepository.skipToQueueItem(queueId)
         if (outcome != MediaCommandOutcome.SENT) {
             diagnosticLog.record(
                 if (outcome == MediaCommandOutcome.ACCESS_LOST) {
@@ -825,6 +1012,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     override fun onCleared() {
+        speedometerManager.stop()
         obdStop = true
         obdRepository.disconnect()
         getApplication<Application>().unregisterComponentCallbacks(memoryTrimCallback)
@@ -839,6 +1027,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private companion object {
         const val SYSTEM_SAMPLE_INTERVAL_MS = 1_000L
+        const val APP_RESCAN_INTERVAL_MS = 60_000L
     }
 }
 

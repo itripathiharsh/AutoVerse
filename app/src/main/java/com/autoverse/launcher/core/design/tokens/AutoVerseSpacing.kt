@@ -27,8 +27,8 @@ object AutoVerseSpacing {
     val chipHorizontal = sm
     val chipVertical = xs
 
-    // Home rail (RAIL_SPLIT archetype)
-    val railWidth = 96.dp
+    // Home rail (compact, fixed-width; shared by every screen)
+    val railWidth = 76.dp
 
     // Touch targets (car UI: comfortable minimums)
     val touchMin = 48.dp

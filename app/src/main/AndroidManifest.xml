@@ -51,6 +51,22 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <!--
+        Incoming-call panel on Home (0.28.0): READ_PHONE_STATE only, runtime
+        opt-in from the Home side panel, callbacks read only while Home is
+        visible. No call-log, contacts, or phone access; the number shown is
+        whatever the platform supplies with this permission, nothing more.
+    -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+
+    <!--
+        Shizuku (map-display probe) declares minSdk 24 conservatively; the
+        library itself works on 23 and every Shizuku call in the app is
+        guarded, so the merge is overridden rather than dropping an API-23
+        device class.
+    -->
+    <uses-sdk tools:overrideLibrary="rikka.shizuku.api" />
+
+    <!--
         Package visibility (API 30+): the app drawer queries launcher-intent
         activities. This <queries> block scopes visibility to exactly the
         apps that declare a launcher activity; no QUERY_ALL_PACKAGES needed.
@@ -125,6 +141,9 @@
         <intent>
             <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
         </intent>
+        <!-- Shizuku: virtual-display helper (map region probe). -->
+        <package android:name="moe.shizuku.privileged.api" />
+        <package android:name="rikka.sui" />
     </queries>
 
     <application
@@ -165,6 +184,17 @@
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
         </service>
+            <!-- Shizuku provider: lets AutoVerse talk to the Shizuku app
+             (shell privileges via wireless debugging) for the map-display
+             probe. No effect unless the user grants it. -->
+        <provider
+            android:name="rikka.shizuku.ShizukuProvider"
+            android:authorities="${applicationId}.shizuku"
+            android:multiprocess="false"
+            android:enabled="true"
+            android:exported="true"
+            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
+
     </application>
 
 </manifest>

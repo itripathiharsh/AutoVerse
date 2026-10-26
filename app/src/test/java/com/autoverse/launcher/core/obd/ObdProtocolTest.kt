@@ -99,4 +99,27 @@ class ObdProtocolTest {
         assertTrue(ObdProtocol.isResetSuccessful("ELM327 v1.5"))
         assertFalse(ObdProtocol.isResetSuccessful("?"))
     }
+
+    @Test
+    fun `trouble codes parse from mode 03 response`() {
+        // Mode 03 response with P0133 (0x0133)
+        val codes = ObdProtocol.parseDtcs("43 01 33 00 00 00 00\r>")
+        assertEquals(1, codes?.size)
+        assertEquals("P0133", codes?.first()?.code)
+        assertTrue(codes?.first()?.description?.contains("O2 sensor", ignoreCase = true) == true)
+    }
+
+    @Test
+    fun `no trouble codes returns empty list`() {
+        assertEquals(emptyList<ObdTroubleCode>(), ObdProtocol.parseDtcs("43 00\r>"))
+        assertEquals(emptyList<ObdTroubleCode>(), ObdProtocol.parseDtcs("NO DATA\r>"))
+    }
+
+    @Test
+    fun `malformed mode 03 response returns null`() {
+        assertNull(ObdProtocol.parseDtcs("CAN ERROR\r>"))
+        assertNull(ObdProtocol.parseDtcs("UNABLE TO CONNECT\r>"))
+        assertNull(ObdProtocol.parseDtcs(""))
+    }
 }
+

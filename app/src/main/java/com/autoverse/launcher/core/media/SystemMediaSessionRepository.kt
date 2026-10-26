@@ -5,6 +5,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.media.MediaMetadata
 import android.media.session.MediaController
+import android.media.session.MediaSession
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
 import android.os.Handler
@@ -120,6 +121,11 @@ class SystemMediaSessionRepository(context: Context) : MediaSessionRepository {
 
             override fun onMetadataChanged(metadata: MediaMetadata?) = emitFromBound()
 
+            override fun onQueueChanged(queue: MutableList<MediaSession.QueueItem>?) =
+                emitFromBound()
+
+            override fun onQueueTitleChanged(title: CharSequence?) = emitFromBound()
+
             override fun onSessionDestroyed() {
                 unbindController()
                 refreshSessions()
@@ -193,6 +199,26 @@ class SystemMediaSessionRepository(context: Context) : MediaSessionRepository {
             }
         }
 
+    override suspend fun skipToQueueItem(queueId: Long): MediaCommandOutcome =
+        withContext(Dispatchers.IO) {
+            if (!isNotificationAccessEnabled(appContext)) {
+                return@withContext MediaCommandOutcome.ACCESS_LOST
+            }
+            val controller = synchronized(controllerLock) { activeController }
+                ?: return@withContext MediaCommandOutcome.FAILED
+            if (!queueSelectionSupported(controller.playbackState?.actions)) {
+                return@withContext MediaCommandOutcome.NOT_SUPPORTED
+            }
+            try {
+                controller.transportControls.skipToQueueItem(queueId)
+                MediaCommandOutcome.SENT
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (failure: Exception) {
+                classifyMediaCommandFailure(failure)
+            }
+        }
+
     override suspend fun loadArtwork(uri: String, targetMaxPx: Int): ImageBitmap? =
         artworkCache.load(uri, targetMaxPx)
 
@@ -207,6 +233,23 @@ class SystemMediaSessionRepository(context: Context) : MediaSessionRepository {
         val metadata = controller.metadata
         val playback = controller.playbackState
         val status = playbackStatusOf(playback?.state ?: PlaybackState.STATE_NONE)
+        val queueItems = try {
+            controller.queue
+        } catch (_: Exception) {
+            null
+        }
+        val queue = mediaQueueUiOf(
+            rawEntries = queueItems?.map { item ->
+                MediaQueueEntry(
+                    queueId = item.queueId,
+                    title = item.description?.title?.toString(),
+                    subtitle = item.description?.subtitle?.toString(),
+                )
+            } ?: emptyList(),
+            totalReported = queueItems?.size,
+            activeQueueId = playback?.activeQueueItemId
+                ?.takeIf { it != MediaSession.QueueItem.UNKNOWN_ID.toLong() },
+        )
         return MediaUiState.Active(
             packageName = controller.packageName,
             appLabel = resolveAppLabel(controller.packageName),
@@ -230,6 +273,14 @@ class SystemMediaSessionRepository(context: Context) : MediaSessionRepository {
                     nowElapsedRealtimeMs = SystemClock.elapsedRealtime(),
                 )
             },
+            queue = queue.entries,
+            queueTotal = queue.total,
+            queueTitle = try {
+                controller.queueTitle?.toString()
+            } catch (_: Exception) {
+                null
+            },
+            activeQueueId = queue.activeQueueId,
         )
     }
 

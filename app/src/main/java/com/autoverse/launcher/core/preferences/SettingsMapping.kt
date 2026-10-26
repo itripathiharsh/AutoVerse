@@ -76,6 +76,25 @@ fun profileFromStorage(stored: String?): PerformanceProfile =
         ?.let { value -> PerformanceProfile.entries.firstOrNull { it.name == value } }
         ?: AppSettings().profile
 
+/** Stored value for an explicit "System default" navigation choice. */
+const val NAVIGATION_SYSTEM_DEFAULT_MARKER = ""
+
+/**
+ * Maps the persisted navigation preference. An absent key means the user
+ * never chose, so the app default (Google Maps) applies — earlier builds
+ * returned null here, which silently turned every untouched install into a
+ * package-less "System default" whose Open action could launch nothing. The
+ * explicit system-default choice is stored as [NAVIGATION_SYSTEM_DEFAULT_MARKER].
+ */
+fun navigationPackageFromStorage(stored: String?, default: String?): String? = when {
+    stored == null -> default
+    stored.isBlank() -> null
+    else -> stored
+}
+
+fun navigationPackageToStorage(packageName: String?): String =
+    packageName?.takeIf { it.isNotBlank() } ?: NAVIGATION_SYSTEM_DEFAULT_MARKER
+
 /** Phase 16 — lower bound of the user text scale (0.85x). */
 const val TEXT_SCALE_MIN = 0.85f
 

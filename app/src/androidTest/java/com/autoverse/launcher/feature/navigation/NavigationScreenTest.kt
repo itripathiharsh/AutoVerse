@@ -2,13 +2,13 @@ package com.autoverse.launcher.feature.navigation
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.SemanticsActions
-import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -20,86 +20,114 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.dp
+import com.autoverse.launcher.core.connectivity.ConnectivityStatus
+import com.autoverse.launcher.core.connectivity.LinkState
 import com.autoverse.launcher.core.design.AutoVerseTheme
 import com.autoverse.launcher.core.model.AutoVerseThemeId
+import com.autoverse.launcher.core.navigation.MapsStatus
 import com.autoverse.launcher.core.navigation.NavigationDestination
 import com.autoverse.launcher.core.navigation.NavigationOutcome
-import com.autoverse.launcher.core.navigation.NavigationProvider
 import com.autoverse.launcher.core.navigation.RecentDestination
-import com.autoverse.launcher.core.navigation.ResolvedNavigationProvider
 import com.autoverse.launcher.core.navigation.SavedPlace
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
 /**
- * Phase 18 — navigation page behavior pins. These tests exercise the real
- * page layout, search states, suggestions, the places panel reflow, and the
- * handoff paths on the intentional (non-map) handoff body.
- *
- * Sizes default to a phone-sized window so every asserted node is on-screen
- * and clickable; the WIDE head-unit layout is driven through
- * [Modifier.requiredSize] beyond the test window, so its structure is
- * asserted with existence checks (same discipline as AppDrawerScreenTest).
+ * Maps page behavior pins (0.28.2): the Google Maps launch panel plus the
+ * destinations panel (saved + recent), with collapse/restore. No map is ever
+ * rendered here; launch outcomes are the typed NavigationOutcome values.
  */
 class NavigationScreenTest {
 
     @get:Rule
     val composeRule = createComposeRule()
 
-    private val maps = ResolvedNavigationProvider(
-        provider = NavigationProvider.GoogleMaps,
-        preferredMissing = false,
-    )
-
     private fun setScreen(
-        widthDp: Int = 400,
-        heightDp: Int = 800,
-        resolved: ResolvedNavigationProvider = maps,
+        mapsStatus: MapsStatus = MapsStatus.INSTALLED,
         savedPlaces: List<SavedPlace> = emptyList(),
         recentDestinations: List<RecentDestination> = emptyList(),
         initialQuery: String = "",
-        placesPanelVisible: Boolean = true,
+        placesCollapsed: Boolean = false,
+        widthDp: Int = 0,
         onNavigate: suspend (NavigationDestination) -> NavigationOutcome = {
-            NavigationOutcome.OPENED
+            NavigationOutcome.REQUESTED
         },
-        onOpenNavigationApp: suspend () -> NavigationOutcome = { NavigationOutcome.OPENED },
-        onSavePlace: (String, NavigationDestination) -> Unit = { _, _ -> },
+        onOpenGoogleMaps: suspend () -> NavigationOutcome = { NavigationOutcome.REQUESTED },
+        onSavePlace: suspend (String, NavigationDestination) -> Boolean = { _, _ -> true },
         onRemovePlace: (SavedPlace) -> Unit = {},
-        onChangeProvider: () -> Unit = {},
+        onClearRecents: () -> Unit = {},
+        onPlacesCollapsedChange: (Boolean) -> Unit = {},
     ) {
         composeRule.setContent {
             AutoVerseTheme(themeId = AutoVerseThemeId.OBSIDIAN) {
                 var query by remember { mutableStateOf(initialQuery) }
-                var panelVisible by remember { mutableStateOf(placesPanelVisible) }
-                Box(Modifier.requiredSize(widthDp.dp, heightDp.dp)) {
+                val screen: @Composable () -> Unit = {
                     NavigationScreen(
-                        resolved = resolved,
+                        clockText = "09:41",
+                        dateText = "Wednesday, 15 October",
+                        connectivity = ConnectivityStatus(
+                            wifi = LinkState.CONNECTED,
+                            bluetooth = LinkState.CONNECTED,
+                        ),
+                        mapsStatus = mapsStatus,
+                        destinationTargetLabel = "Google Maps",
                         savedPlaces = savedPlaces,
                         recentDestinations = recentDestinations,
                         query = query,
                         onQueryChange = { query = it },
-                        placesPanelVisible = panelVisible,
-                        onTogglePlacesPanel = { panelVisible = !panelVisible },
                         onNavigate = onNavigate,
-                        onOpenNavigationApp = onOpenNavigationApp,
+                        onOpenGoogleMaps = onOpenGoogleMaps,
                         onSavePlace = onSavePlace,
                         onRemovePlace = onRemovePlace,
-                        onChangeProvider = onChangeProvider,
-                        onBack = {},
+                        onClearRecents = onClearRecents,
+                        placesCollapsed = placesCollapsed,
+                        onPlacesCollapsedChange = onPlacesCollapsedChange,
+                        onOpenHome = {},
                     )
+                }
+                if (widthDp > 0) {
+                    Box(Modifier.requiredSize(widthDp.dp, 800.dp)) { screen() }
+                } else {
+                    screen()
                 }
             }
         }
     }
 
+    // --- launch panel -------------------------------------------------------
+
     @Test
-    fun handoffSurfaceIsTheDefaultBody() {
+    fun launchPanelNamesMapsAndExplainsItself() {
         setScreen()
-        composeRule.onNodeWithText("Turn-by-turn with Google Maps").assertExists()
-        composeRule.onNodeWithText("Open Google Maps").assertExists()
+        composeRule.onNodeWithText("MAP").assertIsDisplayed()
+        composeRule.onNodeWithText("Open Google Maps").assertIsDisplayed()
+        composeRule.onNodeWithText("© OpenStreetMap contributors © CARTO").assertIsDisplayed()
     }
+
+    @Test
+    fun notInstalledStateDisablesTheLaunchAndSaysSo() {
+        setScreen(mapsStatus = MapsStatus.NOT_INSTALLED)
+        composeRule.onNodeWithText("Google Maps isn\u2019t installed").assertIsDisplayed()
+        composeRule.onNodeWithText("Open Google Maps").assertIsNotEnabled()
+    }
+
+    @Test
+    fun openGoogleMapsInvokesTheLaunchCallback() {
+        val opened = AtomicBoolean(false)
+        setScreen(onOpenGoogleMaps = {
+            opened.set(true)
+            NavigationOutcome.REQUESTED
+        })
+        composeRule.onAllNodesWithText("Open Google Maps").onFirst().performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) { opened.get() }
+        assertTrue(opened.get())
+    }
+
+    // --- destination entry --------------------------------------------------
 
     @Test
     fun navigateIsDisabledUntilTheDestinationIsValid() {
@@ -110,17 +138,20 @@ class NavigationScreenTest {
     @Test
     fun navigateHandsOffTheTypedDestination() {
         val handedOff = AtomicReference<NavigationDestination?>(null)
-        setScreen(initialQuery = "Vienna", onNavigate = { destination ->
-            handedOff.set(destination)
-            NavigationOutcome.OPENED
-        })
+        setScreen(
+            initialQuery = "Vienna",
+            onNavigate = { destination ->
+                handedOff.set(destination)
+                NavigationOutcome.REQUESTED
+            },
+        )
         composeRule.onNodeWithText("Navigate").performClick()
         composeRule.waitUntil(timeoutMillis = 5_000) { handedOff.get() != null }
         assertEquals(NavigationDestination.Query("Vienna"), handedOff.get())
     }
 
     @Test
-    fun invalidCoordinatesShowFailureCopy() {
+    fun invalidCoordinatesShowFailureCopyAndBlockNavigate() {
         setScreen(initialQuery = "95, 200")
         composeRule.onNodeWithText(
             "Latitude must be -90 to 90 and longitude -180 to 180",
@@ -128,176 +159,102 @@ class NavigationScreenTest {
         composeRule.onNodeWithText("Navigate").assertIsNotEnabled()
     }
 
-    @Test
-    fun clearActionEmptiesTheQuery() {
-        setScreen(initialQuery = "Vienna")
-        composeRule.onNodeWithText("Navigate").assertIsDisplayed()
-        composeRule.onNodeWithContentDescription("Clear destination").performClick()
-        composeRule.onNodeWithText("Where to?").assertIsDisplayed()
-        composeRule.onNodeWithText("Navigate").assertIsNotEnabled()
-    }
+    // --- destinations panel -------------------------------------------------
 
     @Test
-    fun savedPlaceSuggestionsFillTheQueryWhenTapped() {
+    fun destinationsPanelShowsSavedAndRecent() {
         setScreen(
-            initialQuery = "prat",
-            placesPanelVisible = false,
-            savedPlaces = listOf(
-                SavedPlace("Home", NavigationDestination.Query("Praterstern")),
-            ),
-        )
-        composeRule.onNodeWithText("Home").performClick()
-        composeRule.onNodeWithText("Praterstern").assertIsDisplayed()
-        composeRule.onNodeWithText("Navigate").assertIsDisplayed()
-    }
-
-    @Test
-    fun recentsOfferSuggestions() {
-        setScreen(
-            initialQuery = "airport",
-            placesPanelVisible = false,
+            savedPlaces = listOf(SavedPlace("Home", NavigationDestination.Query("Praterstern"))),
             recentDestinations = listOf(
                 RecentDestination(NavigationDestination.Query("Vienna Airport")),
             ),
+            widthDp = 1200,
         )
-        composeRule.onNodeWithText("Vienna Airport").assertIsDisplayed()
+        composeRule.onNodeWithText("DESTINATIONS").assertExists()
+        composeRule.onNodeWithText("SAVED").assertExists()
+        composeRule.onNodeWithText("RECENT").assertExists()
+        composeRule.onAllNodesWithText("Home").onFirst().assertExists()
+        composeRule.onAllNodesWithText("Vienna Airport").onFirst().assertExists()
     }
 
     @Test
-    fun noLocalMatchesExplainsTheHandoff() {
-        setScreen(initialQuery = "xyzzy")
-        composeRule.onNodeWithText(
-            "No local matches \u2014 your text is handed off as a search.",
-        ).assertIsDisplayed()
-    }
-
-    @Test
-    fun panelToggleHidesAndShowsThePlacesPanel() {
+    fun tappingASavedPlaceFillsTheQuery() {
         setScreen(
-            savedPlaces = listOf(
-                SavedPlace("Home", NavigationDestination.Query("Praterstern")),
-            ),
+            savedPlaces = listOf(SavedPlace("Home", NavigationDestination.Query("Praterstern"))),
+            initialQuery = "prat",
+            widthDp = 1200,
         )
-        composeRule.onNodeWithText("PLACES").assertIsDisplayed()
-        composeRule.onNodeWithText("Hide places panel").performClick()
-        composeRule.onNodeWithText("PLACES").assertDoesNotExist()
-        composeRule.onNodeWithText("Show places panel").assertIsDisplayed()
-        composeRule.onNodeWithText("Show places panel").performClick()
-        composeRule.onNodeWithText("PLACES").assertIsDisplayed()
-    }
-
-    @Test
-    fun hidingThePanelKeepsTheHandoffSurface() {
-        setScreen()
-        composeRule.onNodeWithText("Turn-by-turn with Google Maps").assertExists()
-        composeRule.onNodeWithText("Hide places panel").performClick()
-        composeRule.onNodeWithText("Turn-by-turn with Google Maps").assertExists()
-    }
-
-    @Test
-    fun narrowWindowsStackBothSurfaces() {
-        setScreen(widthDp = 400, heightDp = 800)
-        composeRule.onNodeWithText("NAVIGATION").assertIsDisplayed()
-        composeRule.onNodeWithText("PLACES").assertIsDisplayed()
-    }
-
-    @Test
-    fun wideWindowsShowTheSidePanelAlongsideTheHandoffSurface() {
-        setScreen(widthDp = 1100, heightDp = 700)
-        composeRule.onNodeWithText("PLACES").assertExists()
-        composeRule.onNodeWithText("Turn-by-turn with Google Maps").assertExists()
-    }
-
-    @Test
-    fun savingAUsesTheLabelAndClearsTheForm() {
-        val saved = AtomicReference<Pair<String, NavigationDestination>?>(null)
-        setScreen(
-            initialQuery = "Vienna",
-            onSavePlace = { label, destination -> saved.set(label to destination) },
-        )
-        composeRule.onNodeWithText("Label (optional)").performTextInput("Home")
-        composeRule.onNodeWithText("Save").performSemanticsAction(SemanticsActions.OnClick)
-        composeRule.waitUntil(timeoutMillis = 5_000) { saved.get() != null }
-        assertEquals("Home" to NavigationDestination.Query("Vienna"), saved.get())
-        composeRule.onNodeWithText("Label (optional)").assertExists()
+        composeRule.onAllNodesWithText("Home").onFirst().performClick()
+        composeRule.onNodeWithText("Praterstern").assertIsDisplayed()
+        composeRule.onNodeWithText("Navigate").assertIsDisplayed()
     }
 
     @Test
     fun removingASavedPlaceInvokesTheCallback() {
         val removed = AtomicReference<SavedPlace?>(null)
         val home = SavedPlace("Home", NavigationDestination.Query("Praterstern"))
-        setScreen(savedPlaces = listOf(home), onRemovePlace = { removed.set(it) })
+        setScreen(
+            savedPlaces = listOf(home),
+            widthDp = 1200,
+            onRemovePlace = { removed.set(it) },
+        )
         composeRule.onNodeWithContentDescription("Remove Home")
             .performSemanticsAction(SemanticsActions.OnClick)
         assertEquals(home, removed.get())
     }
 
     @Test
-    fun handoffFailuresSurfaceTheProviderMessage() {
+    fun savingAPlaceClearsTheFormAndConfirms() {
+        val saved = AtomicReference<Pair<String, NavigationDestination>?>(null)
         setScreen(
             initialQuery = "Vienna",
-            onNavigate = { NavigationOutcome.NO_PROVIDER },
+            widthDp = 1200,
+            onSavePlace = { label, destination ->
+                saved.set(label to destination)
+                true
+            },
         )
-        composeRule.onNodeWithText("Navigate").performClick()
-        composeRule.waitUntil(timeoutMillis = 5_000) {
-            composeRule
-                .onAllNodesWithText("No navigation app is available")
-                .fetchSemanticsNodes()
-                .isNotEmpty()
-        }
+        composeRule.onNodeWithText("Label (optional)").performTextInput("Home")
+        composeRule.onNodeWithText("Save").performSemanticsAction(SemanticsActions.OnClick)
+        composeRule.waitUntil(timeoutMillis = 5_000) { saved.get() != null }
+        assertEquals("Home" to NavigationDestination.Query("Vienna"), saved.get())
+        composeRule.onNodeWithText("Saved \u201CHome\u201D").assertExists()
     }
 
     @Test
-    fun aStalePreferredAppIsAdvertisedAsMissing() {
+    fun recentsCanBeCleared() {
+        val cleared = AtomicBoolean(false)
         setScreen(
-            resolved = ResolvedNavigationProvider(
-                provider = NavigationProvider.GoogleMaps,
-                preferredMissing = true,
-            ),
-        )
-        composeRule.onNodeWithText(
-            "Preferred app isn't installed \u2014 using Google Maps",
-        ).assertIsDisplayed()
-    }
-
-    @Test
-    fun openOnlyProvidersExplainTheirOwnRouting() {
-        setScreen(
-            resolved = ResolvedNavigationProvider(
-                provider = NavigationProvider.OpenOnly("com.example.nav", "Example Nav"),
-                preferredMissing = false,
-            ),
-        )
-        composeRule.onNodeWithText(
-            "This app plans routes inside its own app. Open Example Nav to enter a " +
-                "destination there.",
-        ).assertIsDisplayed()
-        composeRule.onAllNodesWithText("Open Example Nav").onFirst().assertIsDisplayed()
-        composeRule.onNodeWithText("Navigate").assertDoesNotExist()
-    }
-
-    @Test
-    fun emptyPlacesPanelShowsHonestEmptyHints() {
-        setScreen()
-        composeRule.onNodeWithText(
-            "Nothing saved yet. Type a destination above, then tap Save.",
-        ).assertExists()
-        composeRule.onNodeWithText("Destinations you hand off will appear here.")
-            .assertExists()
-    }
-
-    @Test
-    fun recentDestinationsOfferNoDuplicatesWithSavedPlaces() {
-        setScreen(
-            initialQuery = "prater",
-            placesPanelVisible = false,
-            savedPlaces = listOf(
-                SavedPlace("Home", NavigationDestination.Query("Praterstern")),
-            ),
             recentDestinations = listOf(
-                RecentDestination(NavigationDestination.Query("Praterstern")),
+                RecentDestination(NavigationDestination.Query("Vienna Airport")),
             ),
+            widthDp = 1200,
+            onClearRecents = { cleared.set(true) },
         )
-        composeRule.onAllNodesWithText("Praterstern").assertCountEquals(1)
+        composeRule.onNodeWithText("Clear").performClick()
+        assertTrue(cleared.get())
+    }
+
+    // --- collapse -----------------------------------------------------------
+
+    @Test
+    fun collapseHidesThePanelAndKeepsARestoreControl() {
+        var changed: Boolean? = null
+        setScreen(
+            savedPlaces = listOf(SavedPlace("Home", NavigationDestination.Query("Praterstern"))),
+            widthDp = 1200,
+            onPlacesCollapsedChange = { changed = it },
+        )
+        composeRule.onNodeWithContentDescription("Hide destinations")
+            .performSemanticsAction(SemanticsActions.OnClick)
+        assertEquals(true, changed)
+
+        setScreen(
+            placesCollapsed = true,
+            widthDp = 1200,
+            onPlacesCollapsedChange = {},
+        )
+        composeRule.onNodeWithContentDescription("Show destinations").assertExists()
+        composeRule.onNodeWithText("DESTINATIONS").assertDoesNotExist()
     }
 }

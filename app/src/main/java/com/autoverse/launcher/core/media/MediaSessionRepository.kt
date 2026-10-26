@@ -23,6 +23,13 @@ interface MediaSessionRepository {
     suspend fun seekTo(positionMs: Long): MediaCommandOutcome
 
     /**
+     * Asks the featured session to jump to the queue item identified by
+     * [queueId]. Outcomes mirror [send]; NOT_SUPPORTED/FAILED when the player
+     * does not accept queue selection.
+     */
+    suspend fun skipToQueueItem(queueId: Long): MediaCommandOutcome
+
+    /**
      * Loads artwork from a session-provided content URI decoded to at most
      * [targetMaxPx] on the longest edge (the active profile's budget);
      * null on any failure.

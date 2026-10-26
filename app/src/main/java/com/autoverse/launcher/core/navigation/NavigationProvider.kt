@@ -27,14 +27,14 @@ sealed interface NavigationProvider {
     /** Documented at https://developer.android.com/guide/components/google-maps-intents */
     data object GoogleMaps : NavigationProvider {
         override val label = "Google Maps"
-        override val packageName = "com.google.android.apps.maps"
+        override val packageName = GOOGLE_MAPS_PACKAGE
         override val supportsDestination = true
     }
 
     /** Documented at https://developers.google.com/waze/deeplinks */
     data object Waze : NavigationProvider {
         override val label = "Waze"
-        override val packageName = "com.waze"
+        override val packageName = WAZE_PACKAGE
         override val supportsDestination = true
     }
 
@@ -108,28 +108,24 @@ data class ResolvedNavigationProvider(
 )
 
 /**
- * Effective provider for [preferredPackage]. A stored package that is not in
- * [providers] (uninstalled since selection) resolves to the system default
- * with [ResolvedNavigationProvider.preferredMissing] set; the preference is
- * kept so a reinstall restores it.
+ * Display state for [preferredPackage]. Before discovery has run ([providers]
+ * empty) the preference is shown as-is — the launch path re-checks the real
+ * install state at tap time, so nothing is downgraded on a guess. A stored
+ * package missing from a completed discovery is flagged
+ * [ResolvedNavigationProvider.preferredMissing] (the provider stays the
+ * preferred one, so the label and the launch always name the same app).
  */
 fun resolveNavigationProvider(
     preferredPackage: String?,
     providers: List<NavigationProvider>,
 ): ResolvedNavigationProvider {
-    if (preferredPackage == null) {
-        return ResolvedNavigationProvider(
-            provider = NavigationProvider.SystemDefault,
-            preferredMissing = false,
-        )
+    val preferred = providerForPackage(preferredPackage)
+    if (preferredPackage == null || providers.isEmpty()) {
+        return ResolvedNavigationProvider(provider = preferred, preferredMissing = false)
     }
     val match = providers.firstOrNull { it.packageName == preferredPackage }
-    return if (match != null) {
-        ResolvedNavigationProvider(provider = match, preferredMissing = false)
-    } else {
-        ResolvedNavigationProvider(
-            provider = NavigationProvider.SystemDefault,
-            preferredMissing = true,
-        )
-    }
+    return ResolvedNavigationProvider(
+        provider = match ?: preferred,
+        preferredMissing = match == null,
+    )
 }

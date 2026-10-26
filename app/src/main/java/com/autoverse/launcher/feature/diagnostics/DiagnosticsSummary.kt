@@ -6,6 +6,7 @@ import com.autoverse.launcher.core.diagnostics.AppHealth
 import com.autoverse.launcher.core.diagnostics.ComponentStatus
 import com.autoverse.launcher.core.diagnostics.PermissionsSummary
 import com.autoverse.launcher.core.diagnostics.grantedAccessCount
+import com.autoverse.launcher.core.map.MapRenderSnapshot
 import com.autoverse.launcher.core.model.AppearanceMode
 import com.autoverse.launcher.core.model.PerformanceProfile
 import java.util.Locale
@@ -76,6 +77,23 @@ fun fpsReadingText(fps: Float, tracking: Boolean): String = when {
     !tracking -> "Tracking disabled"
     fps <= 0f -> "Measuring…"
     else -> "${fps.roundToInt()} FPS"
+}
+
+/**
+ * Live-map line: fps while the map was moving, slow frames and the worst
+ * frame in the last window, plus whether that meets the smoothness bar.
+ */
+fun mapRenderReadingText(snapshot: MapRenderSnapshot): String = when {
+    snapshot.totalFrames == 0L -> "Not rendered yet — open Home or Maps"
+    snapshot.activeFps <= 0.0 -> "Idle (nothing moving)"
+    else -> String.format(
+        Locale.US,
+        "%.0f fps · %d slow · worst %.0f ms · %s",
+        snapshot.activeFps,
+        snapshot.slowFrames,
+        snapshot.worstFrameMs,
+        if (snapshot.meetsTarget) "smooth" else "below target",
+    )
 }
 
 /** Process CPU share of one core; null means the reading was unavailable. */

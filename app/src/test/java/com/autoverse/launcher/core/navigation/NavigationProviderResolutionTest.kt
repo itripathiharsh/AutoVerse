@@ -40,9 +40,18 @@ class NavigationProviderResolutionTest {
     }
 
     @Test
-    fun `missing preference falls back to system default and is flagged`() {
+    fun `missing preference keeps naming the preferred app and is flagged`() {
+        // The label must name the app the launch will target; the launch
+        // itself then reports NOT_INSTALLED instead of silently retargeting.
         val resolved = resolveNavigationProvider("com.waze", providers)
-        assertEquals(NavigationProvider.SystemDefault, resolved.provider)
+        assertEquals(NavigationProvider.Waze, resolved.provider)
         assertTrue(resolved.preferredMissing)
+    }
+
+    @Test
+    fun `before discovery has run the preference is shown as-is, never downgraded`() {
+        val resolved = resolveNavigationProvider(GOOGLE_MAPS_PACKAGE, emptyList())
+        assertEquals(NavigationProvider.GoogleMaps, resolved.provider)
+        assertFalse(resolved.preferredMissing)
     }
 }

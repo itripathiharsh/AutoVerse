@@ -45,3 +45,13 @@
 -dontwarn org.vosk.**
 -keep class com.sun.jna.** { *; }
 -dontwarn com.sun.jna.**
+
+# MapLibre Native (0.28.5 live map): the AAR ships its own consumer rules for
+# the JNI bridge; these only silence optional OkHttp platform probes.
+-dontwarn org.conscrypt.**
+-dontwarn org.bouncycastle.**
+-dontwarn org.openjsse.**
+
+# Shizuku user service is instantiated reflectively by the Shizuku server;
+# the AIDL stub must survive too.
+-keep class com.autoverse.launcher.core.mapdisplay.** { *; }

@@ -163,6 +163,8 @@ fun SettingsScreen(
     onOpenDiagnostics: () -> Unit = {},
     onOpenHome: () -> Unit = {},
     onOpenNavigation: () -> Unit = {},
+    onOpenSpeedometer: () -> Unit = {},
+    onOpenObd: () -> Unit = {},
     clockText: String = "",
     dateText: String = "",
     connectivity: ConnectivityStatus = ConnectivityStatus(),
@@ -203,6 +205,8 @@ fun SettingsScreen(
         resetSettings = onResetSettings,
         openHome = onOpenHome,
         openNavigation = onOpenNavigation,
+        openSpeedometer = onOpenSpeedometer,
+        openObd = onOpenObd,
     )
 
     val selectCategory: (SettingsCategory) -> Unit = { category ->
@@ -257,9 +261,13 @@ fun SettingsScreen(
                         onOpenHome = callbacks.openHome,
                         onOpenAppDrawer = callbacks.openAppDrawer,
                         onOpenNavigation = callbacks.openNavigation,
+                        onOpenSpeedometer = callbacks.openSpeedometer,
+                        onOpenObd = callbacks.openObd,
                         onOpenDiagnostics = callbacks.openDiagnostics,
                         onOpenSettings = {},
-                        modifier = Modifier.fillMaxHeight(),
+                        modifier = Modifier
+                            .width(AutoVerseSpacing.railWidth)
+                            .fillMaxHeight(),
                     )
                     Column(
                         modifier = Modifier.weight(1f),
@@ -445,6 +453,8 @@ private class SettingsCallbacks(
     val resetSettings: () -> Unit,
     val openHome: () -> Unit,
     val openNavigation: () -> Unit,
+    val openSpeedometer: () -> Unit,
+    val openObd: () -> Unit,
 )
 
 /**

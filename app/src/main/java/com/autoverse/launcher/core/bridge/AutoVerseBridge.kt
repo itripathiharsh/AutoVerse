@@ -267,7 +267,7 @@ class AutoVerseBridge(
                     } catch (_: Exception) {}
                 }
                 lower.contains("map") || lower.contains("nav") -> {
-                    viewModel.openNavigationApp()
+                    viewModel.openGoogleMaps()
                     return@launch
                 }
             }
@@ -289,7 +289,7 @@ class AutoVerseBridge(
     fun openNavigation(query: String?) {
         scope.launch {
             if (query.isNullOrBlank()) {
-                viewModel.openNavigationApp()
+                viewModel.openGoogleMaps()
             } else {
                 when (val parsed = parseNavigationDestination(query)) {
                     is DestinationParseResult.Valid -> {
@@ -301,7 +301,7 @@ class AutoVerseBridge(
                         try {
                             context.startActivity(intent)
                         } catch (_: Exception) {
-                            viewModel.openNavigationApp()
+                            viewModel.openGoogleMaps()
                         }
                     }
                 }

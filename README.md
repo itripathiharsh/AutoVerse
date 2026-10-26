@@ -12,10 +12,10 @@
 
 <p align="center">
   <a href="releases"><img src="https://img.shields.io/badge/platform-Android%206.0%2B%20%28API%2023%29-3DDC84?logo=android&logoColor=white" alt="Platform: Android 6.0+ (API 23)"></a>
-  <img src="https://img.shields.io/badge/release-0.25.2--real--logo-orange" alt="Release 0.25.0-theme-engine">
+  <img src="https://img.shields.io/badge/release-0.28.5--maplibre--map-orange" alt="Release 0.28.5-maplibre-map">
   <img src="https://img.shields.io/badge/Kotlin-2.0.21-7F52FF?logo=kotlin&logoColor=white" alt="Kotlin 2.0.21">
   <img src="https://img.shields.io/badge/Jetpack%20Compose-BOM%202024.10.01-4285F4?logo=jetpackcompose&logoColor=white" alt="Jetpack Compose BOM 2024.10.01">
-  <img src="https://img.shields.io/badge/unit%20tests-417%20passing-brightgreen" alt="417 unit tests passing">
+  <img src="https://img.shields.io/badge/unit%20tests-485%20passing-brightgreen" alt="485 unit tests passing">
   <img src="https://img.shields.io/badge/themes-12%20%287%20premium%29-8B5CF6" alt="12 themes, 7 premium">
 </p>
 
@@ -67,7 +67,7 @@ AutoVerse replaces the stock home screen with an adaptive, glanceable cockpit: l
 
 Grab the latest signed, R8-minified release APK from the [`releases/`](releases) folder:
 
-**[Download AutoVerse 0.25.2-real-logo](https://github.com/itripathiharsh/AutoVerse/raw/main/releases/AutoVerse-0.25.2-real-logo-release.apk)** — SHA-256 in [`releases/SHA256SUMS.txt`](releases/SHA256SUMS.txt)
+**[Download AutoVerse 0.28.5-maplibre-map](https://github.com/itripathiharsh/AutoVerse/raw/main/releases/AutoVerse-0.28.5-maplibre-map-release.apk)** — SHA-256 in [`releases/SHA256SUMS.txt`](releases/SHA256SUMS.txt)
 
 ### Install
 
@@ -75,7 +75,7 @@ AutoVerse is a home-screen replacement and registers the `HOME` intent. It needs
 
 1. Copy the APK to the device, or sideload it:
    ```powershell
-   adb install AutoVerse-0.25.2-real-logo-release.apk
+   adb install AutoVerse-0.28.5-maplibre-map-release.apk
    ```
 2. Open **Settings → Apps → Default apps → Home app** and select AutoVerse (or press Home and pick it).
 3. The first launch walks you through theme, media-access, location, and voice setup.
@@ -99,7 +99,7 @@ Release builds are signed when a `keystore.properties` file exists at the repo r
 ## Testing
 
 ```powershell
-.\gradlew.bat :app:testDebugUnitTest      # 417 JVM unit tests
+.\gradlew.bat :app:testDebugUnitTest      # 485 JVM unit tests
 .\gradlew.bat :app:lintDebug              # Android lint
 .\gradlew.bat :app:connectedDebugAndroidTest  # Compose UI tests (needs a device or emulator)
 ```
@@ -113,7 +113,7 @@ app/
 │  │               OBD2 (core/obd), offline voice (core/voice), sounds, bridge, diagnostics, preferences
 │  └─ feature/     cockpit (WebView dashboard), home, app drawer, navigation, onboarding, settings, diagnostics
 ├─ src/main/assets/cockpit/   the dashboard UI (HTML/CSS/JS + Leaflet), shipped in the APK
-├─ src/test/       417 JVM unit tests
+├─ src/test/       485 JVM unit tests
 └─ src/androidTest/ Compose UI tests (device required)
 docs/              engineering documentation (see below)
 releases/          verified release artifacts (APK + SHA-256)
@@ -152,7 +152,7 @@ releases/          verified release artifacts (APK + SHA-256)
 
 ## Status
 
-Current release: **0.25.2-real-logo** — 417 unit tests passing, signed and R8-minified (~8.2 MB universal APK). The cockpit UI is verified across head-unit and phone viewports with CPU-throttled performance profiling; behaviour on real head-unit hardware (wake word, ELM327 session, GPU headroom) is **unverified until a device pass is done**. Known open work: theme gallery screen for the Compose side, wallpaper picker, and accent variants (see [`docs/theme-system.md`](docs/theme-system.md)).
+Current release: **0.28.5-maplibre-map** — the live map is now MapLibre Native (GPU-rendered vector map, BSD licence) on free OpenFreeMap tiles: no API key, no billing, commercial use allowed, OpenStreetMap attribution shown. One shared map instance serves Home and Maps (no reload on screen switch), the car is followed with interpolated motion from 1 Hz GPS, the frame rate is capped at 30 fps on the Constrained profile, a 200 MB tile cache keeps seen areas offline, and Diagnostics → Performance shows the map's measured fps / slow frames. Replaces 0.28.3's osmdroid + CARTO tiles (osmdroid is archived; CARTO basemaps need a paid licence for commercial use). Release APK ~17.8 MB (map engine for arm64-v8a + armeabi-v7a). Previous: **0.28.4-map-display** — adds the Shizuku virtual-display probe (Diagnostics → Map display (Shizuku)): the installed Google Maps hosted inside AutoVerse's layout via shell privileges — no root, no API key; falls back to the free OSM live map. Previous: **0.28.3-osm-live-map** — the map regions now show a real live map: osmdroid rendering free OpenStreetMap (CARTO dark) tiles with the GPS puck, no API key, no billing, offline tile cache; turn-by-turn still hands off to Google Maps. Previous: **0.28.2-maps-launch-fix** — the Open-Google-Maps dead-tap root cause is fixed (default preference preserved, package-pinned launch, foreground verdict), and the map-first cockpit now renders on 1280x720 head units (the old four-card grid is gone at every size). Previous: **0.28.1-embed-probe** (adds the on-device Google Maps embedding probe — Diagnostics → Run embedding probe — investigating key-free side-by-side display; see docs/map-embedding-investigation.md). Base release **0.28.0-maps-cockpit** — 454 unit tests passing, signed and R8-minified (~8.0 MB universal APK). Map-first cockpit: Home 60/20/20 (Google Maps launch region / Now Playing with the player's real queue / speedometer-or-incoming-call), Apps and Maps pages split 70/30 with recent apps and a collapsible places panel. Zero-cost constraint means Google Maps is handed off, not embedded — see docs/map-integration.md.
 
 ## Contributing
 

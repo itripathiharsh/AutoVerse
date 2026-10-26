@@ -42,6 +42,12 @@ sealed interface MediaUiState {
         val status: PlaybackStatus,
         val controls: MediaControls,
         val progress: MediaProgress?,
+        /** The player's queue when it exposes one; empty means unavailable. */
+        val queue: List<MediaQueueEntry> = emptyList(),
+        val queueTotal: Int = 0,
+        val queueTitle: String? = null,
+        /** Session id of the entry the player reports as current. */
+        val activeQueueId: Long? = null,
     ) : MediaUiState
 
     /** Session reading failed; [message] is factual and retryable. */

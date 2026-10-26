@@ -47,11 +47,16 @@ class SettingsRepository(private val context: Context) {
                 preferSmoothness = preferences[KEY_PREFER_SMOOTHNESS] ?: defaults.preferSmoothness,
                 clock24h = preferences[KEY_CLOCK_24H] ?: defaults.clock24h,
                 textScale = textScaleFromStorage(preferences[KEY_TEXT_SCALE]),
-                navigationPackage = preferences[KEY_NAVIGATION_PACKAGE],
+                navigationPackage = navigationPackageFromStorage(
+                    stored = preferences[KEY_NAVIGATION_PACKAGE],
+                    default = defaults.navigationPackage,
+                ),
                 premiumUnlocked = preferences[KEY_PREMIUM_UNLOCKED] ?: defaults.premiumUnlocked,
                 onboardingComplete = preferences[KEY_ONBOARDING_COMPLETE] ?: defaults.onboardingComplete,
                 offlineVoiceEnabled = preferences[KEY_OFFLINE_VOICE] ?: defaults.offlineVoiceEnabled,
                 themeSoundsEnabled = preferences[KEY_THEME_SOUNDS] ?: defaults.themeSoundsEnabled,
+                appsRecentCollapsed = preferences[KEY_APPS_RECENT_COLLAPSED] ?: defaults.appsRecentCollapsed,
+                mapsPlacesCollapsed = preferences[KEY_MAPS_PLACES_COLLAPSED] ?: defaults.mapsPlacesCollapsed,
             )
         }
 
@@ -100,15 +105,22 @@ class SettingsRepository(private val context: Context) {
         context.settingsDataStore.edit { it[KEY_TEXT_SCALE] = textScaleFromStorage(scale) }
     }
 
-    /** Null restores the unattended system-default handoff. */
+    /**
+     * Null is an explicit "System default" choice and is stored as a marker,
+     * because an absent key must keep meaning "never chosen" (Google Maps).
+     */
     suspend fun setNavigationPackage(packageName: String?) {
         context.settingsDataStore.edit { preferences ->
-            if (packageName == null) {
-                preferences.remove(KEY_NAVIGATION_PACKAGE)
-            } else {
-                preferences[KEY_NAVIGATION_PACKAGE] = packageName
-            }
+            preferences[KEY_NAVIGATION_PACKAGE] = navigationPackageToStorage(packageName)
         }
+    }
+
+    suspend fun setAppsRecentCollapsed(collapsed: Boolean) {
+        context.settingsDataStore.edit { it[KEY_APPS_RECENT_COLLAPSED] = collapsed }
+    }
+
+    suspend fun setMapsPlacesCollapsed(collapsed: Boolean) {
+        context.settingsDataStore.edit { it[KEY_MAPS_PLACES_COLLAPSED] = collapsed }
     }
 
     /**
@@ -153,5 +165,7 @@ class SettingsRepository(private val context: Context) {
         val KEY_ONBOARDING_COMPLETE = booleanPreferencesKey("onboarding_complete")
         val KEY_OFFLINE_VOICE = booleanPreferencesKey("offline_voice")
         val KEY_THEME_SOUNDS = booleanPreferencesKey("theme_sounds")
+        val KEY_APPS_RECENT_COLLAPSED = booleanPreferencesKey("apps_recent_collapsed")
+        val KEY_MAPS_PLACES_COLLAPSED = booleanPreferencesKey("maps_places_collapsed")
     }
 }

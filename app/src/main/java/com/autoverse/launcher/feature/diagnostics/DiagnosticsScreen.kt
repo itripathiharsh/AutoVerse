@@ -30,6 +30,7 @@ import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Extension
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Map
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.Speed
@@ -66,6 +67,7 @@ import com.autoverse.launcher.core.design.components.PrimaryAction
 import com.autoverse.launcher.core.design.components.RailDestination
 import com.autoverse.launcher.core.design.components.StatusChip
 import com.autoverse.launcher.core.design.components.StatusTone
+import com.autoverse.launcher.core.design.components.SectionLabel
 import com.autoverse.launcher.core.design.components.TextAction
 import com.autoverse.launcher.core.design.components.WidgetContainer
 import com.autoverse.launcher.core.design.diagnosticsPanePolicyFor
@@ -80,6 +82,8 @@ import com.autoverse.launcher.core.diagnostics.ComponentStatus
 import com.autoverse.launcher.core.diagnostics.DiagnosticEvent
 import com.autoverse.launcher.core.diagnostics.DiagnosticLevel
 import com.autoverse.launcher.core.diagnostics.FrameSample
+import com.autoverse.launcher.core.map.MapRenderStats
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.autoverse.launcher.core.diagnostics.PermissionsSummary
 import com.autoverse.launcher.core.diagnostics.SystemSnapshot
 import com.autoverse.launcher.core.diagnostics.appDrawerHealth
@@ -148,9 +152,13 @@ fun DiagnosticsScreen(
     onOpenAppDrawer: () -> Unit,
     onOpenNavigation: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenSpeedometer: () -> Unit = {},
+    onOpenObd: () -> Unit = {},
     onOpenAppearanceSettings: () -> Unit,
     onOpenPerformanceSettings: () -> Unit,
     onOpenPermissionsSettings: () -> Unit,
+    onOpenMapProbe: () -> Unit = {},
+    onOpenMapDisplayProbe: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalAutoVerseColors.current
@@ -212,9 +220,11 @@ fun DiagnosticsScreen(
                         AppNavigationRail(
                             selected = RailDestination.DIAGNOSTICS,
                             onOpenHome = onOpenHome,
-                        onOpenAppDrawer = onOpenAppDrawer,
-                        onOpenNavigation = onOpenNavigation,
-                        onOpenDiagnostics = {},
+                            onOpenAppDrawer = onOpenAppDrawer,
+                            onOpenNavigation = onOpenNavigation,
+                            onOpenSpeedometer = onOpenSpeedometer,
+                            onOpenObd = onOpenObd,
+                            onOpenDiagnostics = {},
                             onOpenSettings = onOpenSettings,
                             modifier = Modifier
                                 .width(AutoVerseSpacing.railWidth)
@@ -235,6 +245,7 @@ fun DiagnosticsScreen(
                                 onOpenSettings = onOpenSettings,
                             )
                             RefreshRow(refreshing = refreshing, onRefresh = onRefresh)
+                            ProbeEntryRow(onOpenMapProbe = onOpenMapProbe, onOpenMapDisplayProbe = onOpenMapDisplayProbe)
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -381,6 +392,26 @@ private fun DiagnosticsTopBar(
         onOpenDiagnostics = null,
         onOpenSettings = onOpenSettings,
     )
+}
+
+/**
+ * One-line entry to the map-embedding probe (0.28.1 investigation): the
+ * diagnostic lives behind diagnostics so the shipped UI stays unchanged.
+ */
+@Composable
+private fun ProbeEntryRow(onOpenMapProbe: () -> Unit, onOpenMapDisplayProbe: () -> Unit = {}) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+    ) {
+        SectionLabel(
+            icon = Icons.Outlined.Map,
+            label = "GOOGLE MAPS DISPLAY",
+            modifier = Modifier.weight(1f),
+        )
+        TextAction(text = "Run embedding probe", onClick = onOpenMapProbe)
+        TextAction(text = "Map display (Shizuku)", onClick = onOpenMapDisplayProbe)
+    }
 }
 
 @Composable
@@ -639,6 +670,8 @@ private fun PerformancePanel(
         )
         KeyValueRow(label = "Frames sampled", value = frameSnapshot.frameCount.toString())
         KeyValueRow(label = "Janky frames (>33 ms)", value = frameSnapshot.jankCount.toString())
+        val map by MapRenderStats.snapshot.collectAsStateWithLifecycle()
+        KeyValueRow(label = "Live map", value = mapRenderReadingText(map))
         KeyValueRow(
             label = "CPU (one core = 100%)",
             value = cpuReadingText(systemSnapshot?.processCpuPercentOfCore),

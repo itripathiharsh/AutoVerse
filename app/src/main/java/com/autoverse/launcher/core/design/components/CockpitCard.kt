@@ -58,7 +58,7 @@ fun CockpitCard(
             enabled = enabled,
             role = Role.Button,
             interactionSource = interactionSource,
-            indication = ripple(),
+            indication = if (spec.flatSurfaces) null else ripple(),
             onClick = onClick,
         )
     } else {

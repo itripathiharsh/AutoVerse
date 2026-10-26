@@ -16,6 +16,7 @@ keystore.properties
 # internal workspace files (not part of the public repo)
 stitch-fe/
 /AutoVerse.apk
+/AutoVerse-optimised.apk
 gradle_run.bat
 *.log
 .opencode/

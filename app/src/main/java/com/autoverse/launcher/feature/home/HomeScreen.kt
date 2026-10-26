@@ -1,11 +1,7 @@
 package com.autoverse.launcher.feature.home
 
-import androidx.compose.animation.Crossfade
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,85 +9,60 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Apps
-import androidx.compose.material.icons.outlined.MusicNote
-import androidx.compose.material.icons.outlined.Pause
-import androidx.compose.material.icons.outlined.PlayArrow
-import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalLayoutDirection
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.autoverse.launcher.core.connectivity.ConnectivityStatus
-import com.autoverse.launcher.core.design.HomeArchetype
-import com.autoverse.launcher.core.design.HomeLayoutPolicy
+import com.autoverse.launcher.core.design.CockpitArrangement
+import com.autoverse.launcher.core.design.CockpitGeometry
 import com.autoverse.launcher.core.design.LocalAutoVerseColors
-import com.autoverse.launcher.core.design.NavigationDensity
-import com.autoverse.launcher.core.design.components.AppDockItem
+import com.autoverse.launcher.core.design.StatusChipsMode
+import com.autoverse.launcher.core.design.cockpitGeometryFor
 import com.autoverse.launcher.core.design.components.AppNavigationRail
-import com.autoverse.launcher.core.design.components.CockpitCard
-import com.autoverse.launcher.core.design.components.CompactNavigationRow
 import com.autoverse.launcher.core.design.components.DashboardTopBar
-import com.autoverse.launcher.core.design.components.DriveModeCard
+import com.autoverse.launcher.core.design.components.IncomingCallCard
+import com.autoverse.launcher.core.design.components.MapsLaunchPanel
 import com.autoverse.launcher.core.design.components.MediaCard
-import com.autoverse.launcher.core.design.components.NavigationCard
 import com.autoverse.launcher.core.design.components.RailDestination
-import com.autoverse.launcher.core.design.components.TransportButton
-import com.autoverse.launcher.core.design.components.TransportVariant
+import com.autoverse.launcher.core.design.components.SpeedSummaryCard
+import com.autoverse.launcher.core.design.components.rememberNavigationLaunchFeedback
 import com.autoverse.launcher.core.design.homeLayoutPolicyFor
-import com.autoverse.launcher.core.design.tokens.AutoVerseColors
-import com.autoverse.launcher.core.design.tokens.AutoVerseIcons
-import com.autoverse.launcher.core.design.tokens.AutoVerseShapes
 import com.autoverse.launcher.core.design.tokens.AutoVerseSpacing
-import com.autoverse.launcher.core.design.tokens.LocalAutoVerseMotion
-import com.autoverse.launcher.core.launcher.LaunchOutcome
-import com.autoverse.launcher.core.launcher.launchFailureMessage
+import com.autoverse.launcher.core.location.SpeedometerData
 import com.autoverse.launcher.core.media.MediaCommand
 import com.autoverse.launcher.core.media.MediaCommandOutcome
-import com.autoverse.launcher.core.media.MediaPresentationMode
+import com.autoverse.launcher.core.media.MediaQueueUi
 import com.autoverse.launcher.core.media.MediaUiState
-import com.autoverse.launcher.core.media.isPlaying
 import com.autoverse.launcher.core.media.mediaCommandFailureMessage
 import com.autoverse.launcher.core.media.mediaPresentation
 import com.autoverse.launcher.core.media.mediaToggleCommand
-import com.autoverse.launcher.core.model.InstalledApp
-import com.autoverse.launcher.core.model.PerformanceProfile
+import com.autoverse.launcher.core.navigation.MapsForegroundVerdict
+import com.autoverse.launcher.core.navigation.MapsStatus
 import com.autoverse.launcher.core.navigation.NavigationDestination
 import com.autoverse.launcher.core.navigation.NavigationOutcome
-import com.autoverse.launcher.core.navigation.NavigationProvider
-import com.autoverse.launcher.core.navigation.ResolvedNavigationProvider
-import com.autoverse.launcher.core.navigation.navigationFailureMessage
-import com.autoverse.launcher.core.performance.LocalPerformanceSpec
-import kotlinx.coroutines.launch
+import com.autoverse.launcher.core.navigation.RecentDestination
+import com.autoverse.launcher.core.phone.CallUiState
+import com.autoverse.launcher.core.phone.showsIncomingCall
+import com.autoverse.launcher.core.weather.WeatherUiState
 import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
 
 data class DashboardData(
     val clockText: String,
@@ -101,137 +72,142 @@ data class DashboardData(
 )
 
 /**
- * Media wiring bundled for the dashboard layouts: the current state plus the
- * callbacks the media surfaces need. Defaults render the no-session surface,
- * so previews and tests work without a media layer.
+ * Media wiring for the cockpit's music panel. Defaults render the no-session
+ * surface, so previews and tests work without a media layer.
  */
 internal data class MediaSection(
     val state: MediaUiState = MediaUiState.NoSession,
     val loadArtwork: suspend (MediaUiState) -> ImageBitmap? = { null },
     val onCommand: (MediaCommand) -> Unit = {},
+    val onSkipToQueue: (Long) -> Unit = {},
     val onOpenAccess: () -> Unit = {},
     val onBrowseApps: () -> Unit = {},
     val onRefresh: () -> Unit = {},
 )
 
-/**
- * Navigation wiring bundled for the dashboard layouts: the effective provider
- * plus the callbacks the navigation surfaces need. Defaults to the system
- * default provider, so previews and tests work without a navigation layer.
- */
-internal data class NavigationSection(
-    val resolved: ResolvedNavigationProvider = ResolvedNavigationProvider(
-        provider = NavigationProvider.SystemDefault,
-        preferredMissing = false,
-    ),
-    val onHandoff: (NavigationDestination) -> Unit = {},
-    val onOpenApp: () -> Unit = {},
-    val onChangeProvider: () -> Unit = {},
+/** Map-region wiring; inert defaults for previews. */
+internal data class MapsSection(
+    val status: MapsStatus = MapsStatus.UNKNOWN,
+    val destinationTargetLabel: String = "Google Maps",
+    val query: String = "",
+    val onQueryChange: (String) -> Unit = {},
+    val onNavigate: (NavigationDestination) -> Unit = {},
+    val onOpenMaps: () -> Unit = {},
+    val recentDestinations: List<RecentDestination> = emptyList(),
 )
 
+/** Speed / call panel wiring; inert defaults for previews. */
+internal data class DrivingSection(
+    val speedometerData: SpeedometerData = SpeedometerData(),
+    val weatherState: WeatherUiState = WeatherUiState.Loading,
+    val hasLocationPermission: Boolean = true,
+    val onRequestLocationPermission: () -> Unit = {},
+    val callState: CallUiState = CallUiState.Idle,
+    val hasCallPermission: Boolean = false,
+    val onRequestCallPermission: () -> Unit = {},
+    val onOpenSpeedometer: () -> Unit = {},
+)
+
+/** Rail callbacks; Home itself is the selected entry. */
+internal data class RailSection(
+    val onOpenAppDrawer: () -> Unit = {},
+    val onOpenNavigation: () -> Unit = {},
+    val onOpenSpeedometer: () -> Unit = {},
+    val onOpenObd: () -> Unit = {},
+    val onOpenDiagnostics: () -> Unit = {},
+    val onOpenSettings: () -> Unit = {},
+)
+
+/**
+ * Home is the cockpit — map region, music, speedometer — on every window
+ * size. There is no card grid and no favourites/driving-status panels.
+ */
 @Composable
 fun HomeScreen(
     data: DashboardData,
     onOpenSettings: () -> Unit,
     onOpenDiagnostics: () -> Unit,
     modifier: Modifier = Modifier,
-    favoriteApps: List<InstalledApp> = emptyList(),
-    onLaunchApp: suspend (InstalledApp) -> LaunchOutcome = { LaunchOutcome.LAUNCHED },
     onOpenAppDrawer: () -> Unit = {},
-    loadAppIcon: suspend (InstalledApp) -> ImageBitmap? = { null },
+    onOpenNavigation: () -> Unit = {},
+    onOpenSpeedometer: () -> Unit = {},
+    onOpenObd: () -> Unit = {},
     mediaState: MediaUiState = MediaUiState.NoSession,
     onMediaCommand: suspend (MediaCommand) -> MediaCommandOutcome = { MediaCommandOutcome.SENT },
+    onSkipToQueueItem: suspend (Long) -> MediaCommandOutcome = { MediaCommandOutcome.SENT },
     onOpenMediaAccessSettings: () -> Boolean = { false },
     loadMediaArtwork: suspend (MediaUiState) -> ImageBitmap? = { null },
     onRefreshMedia: () -> Unit = {},
-    navigationProvider: ResolvedNavigationProvider = ResolvedNavigationProvider(
-        provider = NavigationProvider.SystemDefault,
-        preferredMissing = false,
-    ),
-    onNavigateToDestination: suspend (NavigationDestination) -> NavigationOutcome = { NavigationOutcome.OPENED },
-    onOpenNavigationApp: suspend () -> NavigationOutcome = { NavigationOutcome.OPENED },
-    onOpenNavigation: () -> Unit = {},
-    selectedProfile: PerformanceProfile = PerformanceProfile.BALANCED,
-    onSelectProfile: (PerformanceProfile) -> Unit = {},
+    mapsStatus: MapsStatus = MapsStatus.UNKNOWN,
+    destinationTargetLabel: String = "Google Maps",
+    onNavigateToDestination: suspend (NavigationDestination) -> NavigationOutcome = { NavigationOutcome.REQUESTED },
+    onOpenGoogleMaps: suspend () -> NavigationOutcome = { NavigationOutcome.REQUESTED },
+    onLaunchVerdict: (String, MapsForegroundVerdict) -> Unit = { _, _ -> },
+    recentDestinations: List<RecentDestination> = emptyList(),
+    mapsDestinationQuery: String = "",
+    onMapsDestinationQueryChange: (String) -> Unit = {},
+    speedometerData: SpeedometerData = SpeedometerData(),
+    weatherState: WeatherUiState = WeatherUiState.Loading,
+    hasLocationPermission: Boolean = true,
+    onRequestLocationPermission: () -> Unit = {},
+    callState: CallUiState = CallUiState.Idle,
+    hasCallPermission: Boolean = false,
+    onRequestCallPermission: () -> Unit = {},
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val launchFeedback = rememberNavigationLaunchFeedback(snackbarHostState, onLaunchVerdict)
 
-    val onLaunchWithFeedback: (InstalledApp) -> Unit = { app ->
-        scope.launch {
-            val outcome = onLaunchApp(app)
-            if (outcome != LaunchOutcome.LAUNCHED) {
-                snackbarHostState.showSnackbar(
-                    message = launchFailureMessage(app.label, outcome),
-                    withDismissAction = true,
-                )
-            }
-        }
-    }
-
-    val onMediaCommandWithFeedback: (MediaCommand) -> Unit = { command ->
-        scope.launch {
-            val outcome = onMediaCommand(command)
-            if (outcome != MediaCommandOutcome.SENT) {
-                snackbarHostState.showSnackbar(
-                    message = mediaCommandFailureMessage(outcome),
-                    withDismissAction = true,
-                )
-            }
-        }
-    }
-
-    val onMediaAccess: () -> Unit = {
-        if (!onOpenMediaAccessSettings()) {
+    val reportMediaOutcome: (MediaCommandOutcome) -> Unit = { outcome ->
+        if (outcome != MediaCommandOutcome.SENT) {
             scope.launch {
-                snackbarHostState.showSnackbar(
-                    message = "Couldn't open system settings",
-                    withDismissAction = true,
-                )
+                snackbarHostState.showSnackbar(mediaCommandFailureMessage(outcome), withDismissAction = true)
             }
         }
     }
-
     val media = MediaSection(
         state = mediaState,
         loadArtwork = loadMediaArtwork,
-        onCommand = onMediaCommandWithFeedback,
-        onOpenAccess = onMediaAccess,
+        onCommand = { command -> scope.launch { reportMediaOutcome(onMediaCommand(command)) } },
+        onSkipToQueue = { id -> scope.launch { reportMediaOutcome(onSkipToQueueItem(id)) } },
+        onOpenAccess = {
+            if (!onOpenMediaAccessSettings()) {
+                scope.launch {
+                    snackbarHostState.showSnackbar("Couldn't open system settings", withDismissAction = true)
+                }
+            }
+        },
         onBrowseApps = onOpenAppDrawer,
         onRefresh = onRefreshMedia,
     )
-
-    val providerLabel = navigationProvider.provider.label
-
-    val onNavigationHandoff: (NavigationDestination) -> Unit = { destination ->
-        scope.launch {
-            val outcome = onNavigateToDestination(destination)
-            if (outcome != NavigationOutcome.OPENED) {
-                snackbarHostState.showSnackbar(
-                    message = navigationFailureMessage(providerLabel, outcome),
-                    withDismissAction = true,
-                )
-            }
-        }
-    }
-
-    val onNavigationOpenApp: () -> Unit = {
-        scope.launch {
-            val outcome = onOpenNavigationApp()
-            if (outcome != NavigationOutcome.OPENED) {
-                snackbarHostState.showSnackbar(
-                    message = navigationFailureMessage(providerLabel, outcome),
-                    withDismissAction = true,
-                )
-            }
-        }
-    }
-
-    val navigation = NavigationSection(
-        resolved = navigationProvider,
-        onHandoff = onNavigationHandoff,
-        onOpenApp = onNavigationOpenApp,
-        onChangeProvider = onOpenSettings,
+    val maps = MapsSection(
+        status = mapsStatus,
+        destinationTargetLabel = destinationTargetLabel,
+        query = mapsDestinationQuery,
+        onQueryChange = onMapsDestinationQueryChange,
+        onNavigate = { destination ->
+            launchFeedback.run(destinationTargetLabel) { onNavigateToDestination(destination) }
+        },
+        onOpenMaps = { launchFeedback.run("Google Maps", onOpenGoogleMaps) },
+        recentDestinations = recentDestinations,
+    )
+    val driving = DrivingSection(
+        speedometerData = speedometerData,
+        weatherState = weatherState,
+        hasLocationPermission = hasLocationPermission,
+        onRequestLocationPermission = onRequestLocationPermission,
+        callState = callState,
+        hasCallPermission = hasCallPermission,
+        onRequestCallPermission = onRequestCallPermission,
+        onOpenSpeedometer = onOpenSpeedometer,
+    )
+    val rail = RailSection(
+        onOpenAppDrawer = onOpenAppDrawer,
+        onOpenNavigation = onOpenNavigation,
+        onOpenSpeedometer = onOpenSpeedometer,
+        onOpenObd = onOpenObd,
+        onOpenDiagnostics = onOpenDiagnostics,
+        onOpenSettings = onOpenSettings,
     )
 
     Scaffold(
@@ -240,391 +216,198 @@ fun HomeScreen(
         contentWindowInsets = WindowInsets(0.dp, 0.dp, 0.dp, 0.dp),
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { innerPadding ->
-        BoxWithConstraints(
+        HomeScreenContent(
+            data = data,
+            media = media,
+            maps = maps,
+            driving = driving,
+            rail = rail,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-        ) {
-            val density = LocalDensity.current
-            val layoutDirection = LocalLayoutDirection.current
-            val insets = WindowInsets.safeDrawing
-            val insetWidthDp = with(density) {
-                (insets.getLeft(this, layoutDirection) + insets.getRight(this, layoutDirection)).toDp()
-            }
-            val insetHeightDp = with(density) {
-                (insets.getTop(this) + insets.getBottom(this)).toDp()
-            }
-            val policy = homeLayoutPolicyFor(
-                widthDp = (maxWidth - insetWidthDp).value.roundToInt(),
-                heightDp = (maxHeight - insetHeightDp).value.roundToInt(),
-                fontScale = density.fontScale,
-            )
-            HomeScreenContent(
-                data = data,
-                policy = policy,
-                onOpenSettings = onOpenSettings,
-                onOpenDiagnostics = onOpenDiagnostics,
-                favoriteApps = favoriteApps,
-                onLaunchApp = onLaunchWithFeedback,
-                onOpenAppDrawer = onOpenAppDrawer,
-                onOpenNavigation = onOpenNavigation,
-                loadAppIcon = loadAppIcon,
-                media = media,
-                navigation = navigation,
-                selectedProfile = selectedProfile,
-                onSelectProfile = onSelectProfile,
-                modifier = Modifier.fillMaxSize(),
-            )
-        }
+        )
     }
 }
 
 /**
- * Stateless dashboard composition, split out from [HomeScreen] so previews
- * can render any layout archetype without a Scaffold or activity context.
- * The policy is computed by the caller from the available window space.
- * [contentInsets] is applied to the content column; the settings live preview
- * passes zero insets so the miniature dashboard is not padded a second time.
+ * Stateless cockpit composition. [contentInsets] is applied once; the
+ * settings live preview passes zero insets and inert sections.
  */
 @Composable
 internal fun HomeScreenContent(
     data: DashboardData,
-    policy: HomeLayoutPolicy,
-    onOpenSettings: () -> Unit,
-    onOpenDiagnostics: () -> Unit,
     modifier: Modifier = Modifier,
     contentInsets: WindowInsets = WindowInsets.safeDrawing,
-    favoriteApps: List<InstalledApp> = emptyList(),
-    onLaunchApp: (InstalledApp) -> Unit = {},
-    onOpenAppDrawer: () -> Unit = {},
-    onOpenNavigation: () -> Unit = {},
-    loadAppIcon: suspend (InstalledApp) -> ImageBitmap? = { null },
     media: MediaSection = MediaSection(),
-    navigation: NavigationSection = NavigationSection(),
-    selectedProfile: PerformanceProfile = PerformanceProfile.BALANCED,
-    onSelectProfile: (PerformanceProfile) -> Unit = {},
+    maps: MapsSection = MapsSection(),
+    driving: DrivingSection = DrivingSection(),
+    rail: RailSection = RailSection(),
 ) {
     val colors = LocalAutoVerseColors.current
-    val spec = LocalPerformanceSpec.current
-    Box(
-        modifier = modifier.then(
-            if (spec.flatSurfaces) {
-                Modifier.background(colors.backgroundTop)
-            } else {
-                Modifier.background(
-                    Brush.verticalGradient(listOf(colors.backgroundTop, colors.backgroundBottom)),
-                )
-            },
-        ),
-    ) {
+    BoxWithConstraints(modifier = modifier.background(colors.backgroundTop)) {
+        val chips = homeLayoutPolicyFor(
+            widthDp = maxWidth.value.roundToInt(),
+            heightDp = maxHeight.value.roundToInt(),
+            fontScale = LocalDensity.current.fontScale,
+        ).statusChips
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .windowInsetsPadding(contentInsets)
-                .padding(
-                    horizontal = AutoVerseSpacing.screenHorizontal,
-                    vertical = AutoVerseSpacing.screenVertical,
-                ),
-            verticalArrangement = Arrangement.spacedBy(AutoVerseSpacing.stackGap),
+                .padding(horizontal = AutoVerseSpacing.md, vertical = AutoVerseSpacing.sm),
+            verticalArrangement = Arrangement.spacedBy(AutoVerseSpacing.sm),
         ) {
             DashboardTopBar(
                 clockText = data.clockText,
                 dateText = data.dateText,
                 connectivity = data.connectivity,
-                chips = minOf(policy.statusChips, spec.maxStatusChips),
+                chips = chips.coerceAtMost(StatusChipsMode.REDUCED),
                 fpsText = data.fpsText,
-                showLogo = policy.archetype != HomeArchetype.RAIL_SPLIT,
-                onOpenDiagnostics = onOpenDiagnostics,
-                onOpenSettings = onOpenSettings,
+                onOpenDiagnostics = rail.onOpenDiagnostics,
+                onOpenSettings = rail.onOpenSettings,
             )
-            when (policy.archetype) {
-                HomeArchetype.RAIL_SPLIT -> RailSplitLayout(
-                    policy = policy,
-                    navigation = navigation,
-                    favoriteApps = favoriteApps,
-                    onLaunchApp = onLaunchApp,
-                    onOpenAppDrawer = onOpenAppDrawer,
-                    onOpenNavigation = onOpenNavigation,
-                    loadAppIcon = loadAppIcon,
-                    media = media,
-                    selectedProfile = selectedProfile,
-                    onSelectProfile = onSelectProfile,
-                    onOpenSettings = onOpenSettings,
-                    onOpenDiagnostics = onOpenDiagnostics,
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                )
-                HomeArchetype.SPLIT_WITH_ACTIONS -> SplitWithActionsLayout(
-                    policy = policy,
-                    navigation = navigation,
-                    favoriteApps = favoriteApps,
-                    onLaunchApp = onLaunchApp,
-                    onOpenAppDrawer = onOpenAppDrawer,
-                    loadAppIcon = loadAppIcon,
-                    media = media,
-                    selectedProfile = selectedProfile,
-                    onSelectProfile = onSelectProfile,
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                )
-                HomeArchetype.COMPACT_SCROLL -> CompactScrollLayout(
-                    policy = policy,
-                    navigation = navigation,
-                    favoriteApps = favoriteApps,
-                    onLaunchApp = onLaunchApp,
-                    onOpenAppDrawer = onOpenAppDrawer,
-                    loadAppIcon = loadAppIcon,
-                    media = media,
-                    selectedProfile = selectedProfile,
-                    onSelectProfile = onSelectProfile,
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                )
-                HomeArchetype.MINIMAL -> MinimalLayout(
-                    navigation = navigation,
-                    favoriteApps = favoriteApps,
-                    onLaunchApp = onLaunchApp,
-                    onOpenAppDrawer = onOpenAppDrawer,
-                    loadAppIcon = loadAppIcon,
-                    media = media,
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun RailSplitLayout(
-    policy: HomeLayoutPolicy,
-    navigation: NavigationSection,
-    favoriteApps: List<InstalledApp>,
-    onLaunchApp: (InstalledApp) -> Unit,
-    onOpenAppDrawer: () -> Unit,
-    onOpenNavigation: () -> Unit,
-    loadAppIcon: suspend (InstalledApp) -> ImageBitmap?,
-    media: MediaSection,
-    selectedProfile: PerformanceProfile,
-    onSelectProfile: (PerformanceProfile) -> Unit,
-    onOpenSettings: () -> Unit,
-    onOpenDiagnostics: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(AutoVerseSpacing.gridGap),
-    ) {
-        AppNavigationRail(
-            selected = RailDestination.HOME,
-            onOpenHome = {},
-            onOpenAppDrawer = onOpenAppDrawer,
-            onOpenNavigation = onOpenNavigation,
-            onOpenDiagnostics = onOpenDiagnostics,
-            onOpenSettings = onOpenSettings,
-            modifier = Modifier
-                .width(AutoVerseSpacing.railWidth)
-                .fillMaxHeight(),
-        )
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight(),
-            verticalArrangement = Arrangement.spacedBy(AutoVerseSpacing.gridGap),
-        ) {
             Row(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(AutoVerseSpacing.gridGap),
             ) {
-                NavigationCard(
-                    resolved = navigation.resolved,
-                    dense = policy.navigationDensity == NavigationDensity.COMPACT,
-                    onHandoff = navigation.onHandoff,
-                    onOpenApp = navigation.onOpenApp,
-                    onChangeProvider = navigation.onChangeProvider,
+                AppNavigationRail(
+                    selected = RailDestination.HOME,
+                    onOpenHome = {},
+                    onOpenAppDrawer = rail.onOpenAppDrawer,
+                    onOpenNavigation = rail.onOpenNavigation,
+                    onOpenSpeedometer = rail.onOpenSpeedometer,
+                    onOpenObd = rail.onOpenObd,
+                    onOpenDiagnostics = rail.onOpenDiagnostics,
+                    onOpenSettings = rail.onOpenSettings,
                     modifier = Modifier
-                        .weight(1.35f)
+                        .width(AutoVerseSpacing.railWidth)
                         .fillMaxHeight(),
                 )
-                MediaWidget(
-                    media = media,
-                    dense = policy.navigationDensity == NavigationDensity.COMPACT,
+                BoxWithConstraints(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight(),
-                )
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(AutoVerseSpacing.gridGap)) {
-                QuickActionsRow(
-                    favoriteApps = favoriteApps,
-                    onLaunchApp = onLaunchApp,
-                    onOpenAppDrawer = onOpenAppDrawer,
-                    loadAppIcon = loadAppIcon,
-                    modifier = Modifier.weight(1f),
-                )
-                DriveModeCard(
-                    selected = selectedProfile,
-                    onSelect = onSelectProfile,
-                    modifier = Modifier.weight(1f),
-                )
+                ) {
+                    val geometry = cockpitGeometryFor(
+                        contentWidthDp = maxWidth.value.roundToInt(),
+                        contentHeightDp = maxHeight.value.roundToInt(),
+                    )
+                    CockpitRegions(geometry = geometry, media = media, maps = maps, driving = driving)
+                }
             }
         }
     }
 }
 
-@Composable
-private fun SplitWithActionsLayout(
-    policy: HomeLayoutPolicy,
-    navigation: NavigationSection,
-    favoriteApps: List<InstalledApp>,
-    onLaunchApp: (InstalledApp) -> Unit,
-    onOpenAppDrawer: () -> Unit,
-    loadAppIcon: suspend (InstalledApp) -> ImageBitmap?,
-    media: MediaSection,
-    selectedProfile: PerformanceProfile,
-    onSelectProfile: (PerformanceProfile) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(AutoVerseSpacing.gridGap),
-    ) {
-        Row(
-            modifier = Modifier.weight(1f),
-            horizontalArrangement = Arrangement.spacedBy(AutoVerseSpacing.gridGap),
-        ) {
-            NavigationCard(
-                resolved = navigation.resolved,
-                dense = policy.navigationDensity == NavigationDensity.COMPACT,
-                onHandoff = navigation.onHandoff,
-                onOpenApp = navigation.onOpenApp,
-                onChangeProvider = navigation.onChangeProvider,
-                modifier = Modifier
-                    .weight(1.5f)
-                    .fillMaxHeight(),
-            )
-            MediaWidget(
-                media = media,
-                dense = policy.navigationDensity == NavigationDensity.COMPACT,
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight(),
-            )
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(AutoVerseSpacing.gridGap)) {
-            QuickActionsRow(
-                favoriteApps = favoriteApps,
-                onLaunchApp = onLaunchApp,
-                onOpenAppDrawer = onOpenAppDrawer,
-                loadAppIcon = loadAppIcon,
-                modifier = Modifier.weight(1f),
-            )
-            DriveModeCard(
-                selected = selectedProfile,
-                onSelect = onSelectProfile,
-                modifier = Modifier.weight(1f),
-            )
-        }
-    }
-}
-
-@Composable
-private fun CompactScrollLayout(
-    policy: HomeLayoutPolicy,
-    navigation: NavigationSection,
-    favoriteApps: List<InstalledApp>,
-    onLaunchApp: (InstalledApp) -> Unit,
-    onOpenAppDrawer: () -> Unit,
-    loadAppIcon: suspend (InstalledApp) -> ImageBitmap?,
-    media: MediaSection,
-    selectedProfile: PerformanceProfile,
-    onSelectProfile: (PerformanceProfile) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        modifier = modifier.verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(AutoVerseSpacing.gridGap),
-    ) {
-        NavigationCard(
-            resolved = navigation.resolved,
-            dense = policy.navigationDensity == NavigationDensity.COMPACT,
-            onHandoff = navigation.onHandoff,
-            onOpenApp = navigation.onOpenApp,
-            onChangeProvider = navigation.onChangeProvider,
-            modifier = Modifier
-                .fillMaxWidth()
-                .then(
-                    if (policy.navigationDensity == NavigationDensity.FULL) {
-                        Modifier.heightIn(min = 280.dp)
-                    } else {
-                        Modifier
-                    },
-                ),
-        )
-        MediaWidget(
-            media = media,
-            dense = policy.navigationDensity == NavigationDensity.COMPACT,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        QuickActionsRow(
-            favoriteApps = favoriteApps,
-            onLaunchApp = onLaunchApp,
-            onOpenAppDrawer = onOpenAppDrawer,
-            loadAppIcon = loadAppIcon,
-        )
-        DriveModeCard(
-            selected = selectedProfile,
-            onSelect = onSelectProfile,
-            modifier = Modifier.fillMaxWidth(),
-        )
-    }
-}
+private fun StatusChipsMode.coerceAtMost(limit: StatusChipsMode): StatusChipsMode =
+    if (ordinal > limit.ordinal) limit else this
 
 /**
- * Very constrained fallback (short strips): clock stays in the status strip,
- * media collapses to a single row, navigation collapses to a single-row
- * destination bar, shortcuts keep the dock row. Scrollable, so no height
- * can clip it.
+ * Map ~60%, music ~20%, speed/call ~20% of the content area. SIDE_BY_SIDE puts
+ * music above speed in a 40% column beside the map; STACKED puts the map on
+ * top and music beside speed below it. Nothing animates between them.
  */
 @Composable
-private fun MinimalLayout(
-    navigation: NavigationSection,
-    favoriteApps: List<InstalledApp>,
-    onLaunchApp: (InstalledApp) -> Unit,
-    onOpenAppDrawer: () -> Unit,
-    loadAppIcon: suspend (InstalledApp) -> ImageBitmap?,
+private fun CockpitRegions(
+    geometry: CockpitGeometry,
     media: MediaSection,
-    modifier: Modifier = Modifier,
+    maps: MapsSection,
+    driving: DrivingSection,
 ) {
-    Column(
-        modifier = modifier.verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(AutoVerseSpacing.gridGap),
-    ) {
-        CompactMediaRow(media)
-        CompactNavigationRow(
-            resolved = navigation.resolved,
-            onHandoff = navigation.onHandoff,
-            onOpenApp = navigation.onOpenApp,
-            modifier = Modifier.fillMaxWidth(),
+    val mapWeight = geometry.mapFraction
+    val sideWeight = 1f - geometry.mapFraction
+    val mapRegion: @Composable (Modifier) -> Unit = { regionModifier ->
+        MapsLaunchPanel(
+            mapsStatus = maps.status,
+            destinationTargetLabel = maps.destinationTargetLabel,
+            destinationQuery = maps.query,
+            onDestinationQueryChange = maps.onQueryChange,
+            onNavigate = maps.onNavigate,
+            onOpenMaps = maps.onOpenMaps,
+            recentDestinations = maps.recentDestinations,
+            compact = geometry.compactPanels,
+            speedometerData = driving.speedometerData,
+            hasLocationPermission = driving.hasLocationPermission,
+            modifier = regionModifier,
         )
-        QuickActionsRow(
-            favoriteApps = favoriteApps,
-            onLaunchApp = onLaunchApp,
-            onOpenAppDrawer = onOpenAppDrawer,
-            loadAppIcon = loadAppIcon,
+    }
+    val musicPanel: @Composable (Modifier) -> Unit = { panelModifier ->
+        MusicPanel(media = media, dense = true, modifier = panelModifier)
+    }
+    val speedPanel: @Composable (Modifier) -> Unit = { panelModifier ->
+        SpeedOrCallPanel(driving = driving, compact = geometry.compactPanels, modifier = panelModifier)
+    }
+    when (geometry.arrangement) {
+        CockpitArrangement.SIDE_BY_SIDE -> Row(
+            modifier = Modifier.fillMaxSize(),
+            horizontalArrangement = Arrangement.spacedBy(AutoVerseSpacing.gridGap),
+        ) {
+            mapRegion(Modifier.weight(mapWeight).fillMaxHeight())
+            Column(
+                modifier = Modifier.weight(sideWeight).fillMaxHeight(),
+                verticalArrangement = Arrangement.spacedBy(AutoVerseSpacing.gridGap),
+            ) {
+                musicPanel(Modifier.weight(1f).fillMaxWidth())
+                speedPanel(Modifier.weight(1f).fillMaxWidth())
+            }
+        }
+        CockpitArrangement.STACKED -> Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(AutoVerseSpacing.gridGap),
+        ) {
+            mapRegion(Modifier.weight(mapWeight).fillMaxWidth())
+            Row(
+                modifier = Modifier.weight(sideWeight).fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(AutoVerseSpacing.gridGap),
+            ) {
+                musicPanel(Modifier.weight(1f).fillMaxHeight())
+                speedPanel(Modifier.weight(1f).fillMaxHeight())
+            }
+        }
+    }
+}
+
+/** The speed panel, temporarily replaced by the call panel while the platform reports a call. */
+@Composable
+private fun SpeedOrCallPanel(driving: DrivingSection, compact: Boolean, modifier: Modifier) {
+    if (showsIncomingCall(driving.callState, driving.hasCallPermission)) {
+        IncomingCallCard(callState = driving.callState, compact = true, modifier = modifier)
+    } else {
+        SpeedSummaryCard(
+            speedometerData = driving.speedometerData,
+            hasLocationPermission = driving.hasLocationPermission,
+            onOpenSpeedometer = driving.onOpenSpeedometer,
+            onRequestLocationPermission = driving.onRequestLocationPermission,
+            weatherState = driving.weatherState,
+            compact = compact,
+            hasCallPermission = driving.hasCallPermission,
+            onRequestCallPermission = driving.onRequestCallPermission,
+            modifier = modifier,
         )
     }
 }
 
 @Composable
-private fun MediaWidget(
-    media: MediaSection,
-    dense: Boolean,
-    modifier: Modifier = Modifier,
-) {
+private fun MusicPanel(media: MediaSection, dense: Boolean, modifier: Modifier) {
     val presentation = remember(media.state) { mediaPresentation(media.state) }
     val artwork = rememberMediaArtwork(state = media.state, loadArtwork = media.loadArtwork)
+    var showQueue by rememberSaveable { mutableStateOf(false) }
+    val active = media.state as? MediaUiState.Active
+    val queue = active?.takeIf { it.queue.isNotEmpty() }?.let {
+        MediaQueueUi(entries = it.queue, total = it.queueTotal, activeQueueId = it.activeQueueId)
+    }
     MediaCard(
         presentation = presentation,
         modifier = modifier,
         artwork = artwork,
         dense = dense,
+        queue = queue,
+        queueTitle = active?.queueTitle,
+        showQueue = showQueue && queue != null,
+        onViewChange = { showQueue = it },
+        onSkipToQueue = media.onSkipToQueue,
         onPrevious = { media.onCommand(MediaCommand.PREVIOUS) },
         onTogglePlay = { media.onCommand(mediaToggleCommand(presentation.status)) },
         onNext = { media.onCommand(MediaCommand.NEXT) },
@@ -648,136 +431,4 @@ private fun rememberMediaArtwork(
         value = loadArtwork(state)
     }
     return artwork
-}
-
-/** Single-row media surface for the minimal archetype. */
-@Composable
-private fun CompactMediaRow(media: MediaSection) {
-    val colors = LocalAutoVerseColors.current
-    val spec = LocalPerformanceSpec.current
-    val motion = LocalAutoVerseMotion.current
-    val presentation = remember(media.state) { mediaPresentation(media.state) }
-    val artwork = rememberMediaArtwork(state = media.state, loadArtwork = media.loadArtwork)
-    val playing = presentation.status?.isPlaying == true
-    CockpitCard(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(AutoVerseSpacing.md),
-        ) {
-            if (presentation.mode == MediaPresentationMode.ACTIVE) {
-                Box(
-                    modifier = Modifier
-                        .size(AutoVerseIcons.prominent)
-                        .clip(AutoVerseShapes.small)
-                        .background(colors.surfaceHighlight),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    if (spec.artworkCrossfade) {
-                        Crossfade(
-                            targetState = artwork,
-                            animationSpec = tween(motion.standardMs),
-                            label = "compactArtwork",
-                        ) { image ->
-                            CompactArtwork(image = image, colors = colors)
-                        }
-                    } else {
-                        CompactArtwork(image = artwork, colors = colors)
-                    }
-                }
-            } else {
-                Box(
-                    modifier = Modifier
-                        .size(AutoVerseIcons.dot)
-                        .clip(CircleShape)
-                        .background(colors.textFaint),
-                )
-            }
-            Text(
-                text = presentation.headline,
-                style = MaterialTheme.typography.titleMedium,
-                color = if (presentation.mode == MediaPresentationMode.ACTIVE) {
-                    colors.textPrimary
-                } else {
-                    colors.textSecondary
-                },
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
-            when (presentation.mode) {
-                MediaPresentationMode.ACTIVE -> TransportButton(
-                    icon = if (playing) Icons.Outlined.Pause else Icons.Outlined.PlayArrow,
-                    contentDescription = if (playing) "Pause" else "Play",
-                    onClick = { media.onCommand(mediaToggleCommand(presentation.status)) },
-                    variant = TransportVariant.SECONDARY,
-                    enabled = presentation.controls.canTogglePlayPause,
-                )
-
-                MediaPresentationMode.ACCESS_REQUIRED -> TransportButton(
-                    icon = Icons.Outlined.Settings,
-                    contentDescription = "Open media access settings",
-                    onClick = media.onOpenAccess,
-                    variant = TransportVariant.SECONDARY,
-                )
-
-                else -> Unit
-            }
-        }
-    }
-}
-
-/** Artwork or placeholder fill for the compact media row's artwork box. */
-@Composable
-private fun CompactArtwork(image: ImageBitmap?, colors: AutoVerseColors) {
-    if (image != null) {
-        Image(
-            bitmap = image,
-            contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop,
-        )
-    } else {
-        Icon(
-            Icons.Outlined.MusicNote,
-            contentDescription = null,
-            modifier = Modifier.size(AutoVerseIcons.dot),
-            tint = colors.textFaint,
-        )
-    }
-}
-
-/** Favorites dock: up to three favorite apps plus a permanent Apps tile. */
-private const val MAX_DOCK_FAVORITES = 3
-
-@Composable
-private fun QuickActionsRow(
-    favoriteApps: List<InstalledApp>,
-    onLaunchApp: (InstalledApp) -> Unit,
-    onOpenAppDrawer: () -> Unit,
-    loadAppIcon: suspend (InstalledApp) -> ImageBitmap?,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(AutoVerseSpacing.gridGap),
-    ) {
-        favoriteApps.take(MAX_DOCK_FAVORITES).forEach { app ->
-            val icon by produceState<ImageBitmap?>(initialValue = null, app.key) {
-                value = loadAppIcon(app)
-            }
-            AppDockItem(
-                label = app.label,
-                image = icon,
-                onClick = { onLaunchApp(app) },
-                modifier = Modifier.weight(1f),
-            )
-        }
-        AppDockItem(
-            icon = Icons.Outlined.Apps,
-            label = "Apps",
-            onClick = onOpenAppDrawer,
-            modifier = Modifier.weight(1f),
-        )
-    }
 }

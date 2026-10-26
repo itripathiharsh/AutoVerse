@@ -25,6 +25,8 @@ data class PerformanceSpec(
     val artworkTargetPx: Int,
     val artworkCrossfade: Boolean,
     val maxStatusChips: StatusChipsMode,
+    /** Live-map frame cap: steady 30 fps keeps weak head units cool and jank-free. */
+    val mapMaxFps: Int = 60,
 ) {
     companion object {
 
@@ -38,6 +40,7 @@ data class PerformanceSpec(
             artworkTargetPx = 128,
             artworkCrossfade = false,
             maxStatusChips = StatusChipsMode.REDUCED,
+            mapMaxFps = 30,
         )
 
         /** Identical to the pre-Phase-9 behavior; the out-of-the-box workload. */
@@ -64,7 +67,7 @@ data class PerformanceSpec(
             maxStatusChips = StatusChipsMode.FULL,
         )
 
-        val Default: PerformanceSpec = Balanced
+        val Default: PerformanceSpec = Constrained
     }
 }
 

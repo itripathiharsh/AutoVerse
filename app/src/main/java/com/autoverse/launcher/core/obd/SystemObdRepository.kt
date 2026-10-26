@@ -70,9 +70,44 @@ class SystemObdRepository(private val context: Context) {
     }
 
     /**
-     * Opens the SPP socket to the first matching bonded adapter, performs the
-     * ELM327 handshake, then polls [pollOrder] round-robin, delivering merged
-     * samples to [onSample]. Blocks on the caller's dispatcher (IO).
+     * All bonded Bluetooth devices for the user-driven adapter picker.
+     * Likely ELM327 clones (name heuristics) sort first and are flagged so
+     * the UI can mark them; every bonded device stays selectable because
+     * plenty of adapters ship under arbitrary names.
+     */
+    @SuppressLint("MissingPermission")
+    fun listPairedAdapters(): List<ObdAdapter> {
+        if (!hasConnectPermission) return emptyList()
+        val manager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
+        val bonded = try {
+            manager?.adapter?.bondedDevices.orEmpty()
+        } catch (_: SecurityException) {
+            return emptyList()
+        }
+        return bonded
+            .mapNotNull { device ->
+                val name = try {
+                    device.name
+                } catch (_: SecurityException) {
+                    null
+                } ?: return@mapNotNull null
+                ObdAdapter(
+                    name = name,
+                    address = device.address,
+                    likelyObd = OBD_NAME_HINTS.any { name.uppercase().contains(it) },
+                )
+            }
+            .sortedWith(compareByDescending<ObdAdapter> { it.likelyObd }.thenBy { it.name })
+    }
+
+    /**
+     * Opens the SPP socket to a bonded adapter — the one at [deviceAddress]
+     * when given (user selection), otherwise the first name-heuristic match —
+     * performs the ELM327 handshake, then polls [pollOrder] round-robin,
+     * delivering merged samples to [onSample]. Between polls it honours a
+     * user-requested Mode 03 fault-code read via [consumeDtcRequest] and
+     * reports the outcome through [onDtcs] (null = read unavailable).
+     * Blocks on the caller's dispatcher (IO).
      *
      * Closes the socket when [shouldStop] turns true or on any IO failure.
      * Throws IOException with a readable message for the UI error state.
@@ -82,16 +117,31 @@ class SystemObdRepository(private val context: Context) {
         onState: (ObdConnectionState) -> Unit,
         onSample: (ObdSample) -> Unit,
         shouldStop: () -> Boolean,
+        deviceAddress: String? = null,
+        consumeDtcRequest: () -> Boolean = { false },
+        onDtcs: ((List<ObdTroubleCode>?) -> Unit)? = null,
     ): Unit = withContext(Dispatchers.IO) {
         val manager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
         val adapter = manager?.adapter ?: throw IOException("No Bluetooth adapter on this device")
         val device = try {
-            adapter.bondedDevices.orEmpty()
-                .sortedBy { it.name ?: "" }
-                .firstOrNull { d -> OBD_NAME_HINTS.any { (d.name ?: "").uppercase().contains(it) } }
+            val bonded = adapter.bondedDevices.orEmpty()
+            if (deviceAddress != null) {
+                bonded.firstOrNull { it.address == deviceAddress }
+                    ?: throw IOException("That adapter is no longer paired — refresh the list and pick again")
+            } else {
+                bonded
+                    .sortedBy { it.name ?: "" }
+                    .firstOrNull { d -> OBD_NAME_HINTS.any { (d.name ?: "").uppercase().contains(it) } }
+            }
         } catch (_: SecurityException) {
             null
-        } ?: throw IOException("No paired OBD adapter found \u2014 pair your ELM327 device in Bluetooth settings first")
+        } ?: throw IOException(
+            if (deviceAddress == null) {
+                "No paired OBD adapter found \u2014 pair your ELM327 device in Bluetooth settings first"
+            } else {
+                "Bluetooth permission was revoked"
+            },
+        )
 
         val name = device.name ?: "OBD adapter"
         onState(ObdConnectionState.Connecting(name))
@@ -117,7 +167,7 @@ class SystemObdRepository(private val context: Context) {
                 sock.inputStream.use { input ->
                     handshake(input, out)
                     onState(ObdConnectionState.Connected(name, ObdSample()))
-                    pollLoop(input, out, onSample, shouldStop)
+                    pollLoop(input, out, onSample, shouldStop, consumeDtcRequest, onDtcs)
                 }
             }
         } finally {
@@ -157,10 +207,23 @@ class SystemObdRepository(private val context: Context) {
         out: OutputStream,
         onSample: (ObdSample) -> Unit,
         shouldStop: () -> Boolean,
+        consumeDtcRequest: () -> Boolean = { false },
+        onDtcs: ((List<ObdTroubleCode>?) -> Unit)? = null,
     ) {
         var sample = ObdSample()
         var index = 0
         while (!shouldStop()) {
+            if (onDtcs != null && consumeDtcRequest()) {
+                try {
+                    writeCommand(out, ObdProtocol.DTC_COMMAND)
+                    // Mode 03 answers can trail behind PID responses; give the
+                    // ECU extra time before declaring the read unavailable.
+                    val response = readResponse(input, DTC_TIMEOUT_MS)
+                    onDtcs(response?.let { ObdProtocol.parseDtcs(it) })
+                } catch (_: IOException) {
+                    throw IOException("Connection to the adapter was lost")
+                }
+            }
             val pid = ObdProtocol.pollOrder[index % ObdProtocol.pollOrder.size]
             index += 1
             try {
@@ -184,9 +247,12 @@ class SystemObdRepository(private val context: Context) {
     }
 
     /** Reads until the ELM prompt, a timeout, or the stream ends. */
-    private suspend fun readResponse(input: InputStream): String? {
+    private suspend fun readResponse(
+        input: InputStream,
+        timeoutMs: Long = RESPONSE_TIMEOUT_MS,
+    ): String? {
         val buffer = StringBuilder()
-        val deadline = System.currentTimeMillis() + RESPONSE_TIMEOUT_MS
+        val deadline = System.currentTimeMillis() + timeoutMs
         while (System.currentTimeMillis() < deadline) {
             if (input.available() > 0) {
                 val chunk = ByteArray(256)
@@ -206,6 +272,7 @@ class SystemObdRepository(private val context: Context) {
         private val SPP_UUID: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
         private const val POLL_INTERVAL_MS = 150L
         private const val RESPONSE_TIMEOUT_MS = 1_200L
+        private const val DTC_TIMEOUT_MS = 3_000L
         private const val READ_IDLE_MS = 20L
 
         /** Common bonded names across the ELM327 clones that dominate the market. */
