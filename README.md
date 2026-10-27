@@ -12,7 +12,7 @@
 
 <p align="center">
   <a href="releases"><img src="https://img.shields.io/badge/platform-Android%206.0%2B%20%28API%2023%29-3DDC84?logo=android&logoColor=white" alt="Platform: Android 6.0+ (API 23)"></a>
-  <img src="https://img.shields.io/badge/release-1.0.0-orange" alt="Release 1.0.0">
+  <img src="https://img.shields.io/badge/release-1.0.1-orange" alt="Release 1.0.1">
   <img src="https://img.shields.io/badge/target-Android%2016%20%28API%2036%29-3DDC84" alt="Target Android 16 (API 36)">
   <img src="https://img.shields.io/badge/Kotlin-2.2.21-7F52FF?logo=kotlin&logoColor=white" alt="Kotlin 2.2.21">
   <img src="https://img.shields.io/badge/unit%20tests-484%20passing-brightgreen" alt="484 unit tests passing">
@@ -59,11 +59,10 @@ weather; Bluetooth ELM327 adapters for RPM, coolant, fuel level and fault codes.
 
 ## Download
 
-**[AutoVerse 1.0.0 APK](releases/AutoVerse-1.0.0-release.apk)** (sideload) ·
-**[AutoVerse 1.0.0 AAB](releases/AutoVerse-1.0.0.aab)** (Google Play upload) —
-SHA-256 in [`releases/SHA256SUMS.txt`](releases/SHA256SUMS.txt)
+**[AutoVerse 1.0.1 APK](AutoVerse-1.0.1-release.apk)** (sideload, at the repo
+root) — SHA-256 in [`releases/SHA256SUMS.txt`](releases/SHA256SUMS.txt)
 
-Install: `adb install AutoVerse-1.0.0-release.apk`, then choose AutoVerse as
+Install: `adb install AutoVerse-1.0.1-release.apk`, then choose AutoVerse as
 the Home app (the first-run setup offers the picker).
 
 ## Build from source
@@ -114,6 +113,10 @@ test, privacy policy, store listing, and Data-safety answers.
 | [third-party-licenses.md](docs/third-party-licenses.md) | Third-party notices |
 
 ## Status
+
+**1.0.1** — bugfix on the 1.0.0 release candidate: the first-run setup's
+**Continue** button now advances to the next page (it previously did nothing;
+only Skip and the final "Open the cockpit" action worked).
 
 **1.0.0** — release candidate for Google Play: targets Android 16, 16 KB
 page-size compliant, signed APK + AAB. Not yet verified on a head unit — run

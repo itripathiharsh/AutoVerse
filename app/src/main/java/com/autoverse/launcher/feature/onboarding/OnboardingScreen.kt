@@ -37,6 +37,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,6 +47,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.launch
 import com.autoverse.launcher.core.design.LocalAutoVerseColors
 import com.autoverse.launcher.core.design.components.BrandPlate
 import com.autoverse.launcher.core.design.components.PremiumUnlockDialog
@@ -90,6 +92,7 @@ fun OnboardingScreen(
     }
 
     val pagerState = rememberPagerState(pageCount = { 4 })
+    val scope = rememberCoroutineScope()
 
     Column(
         modifier = modifier
@@ -164,7 +167,12 @@ fun OnboardingScreen(
                 else -> "Continue"
             },
             onClick = {
-                if (pagerState.currentPage == 3) onGetStarted()
+                when (pagerState.currentPage) {
+                    3 -> onGetStarted()
+                    else -> scope.launch {
+                        pagerState.animateScrollToPage(pagerState.currentPage + 1)
+                    }
+                }
             },
             modifier = Modifier.fillMaxWidth(),
         )
