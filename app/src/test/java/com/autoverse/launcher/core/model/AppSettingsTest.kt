@@ -48,9 +48,9 @@ class AppSettingsTest {
     }
 
     @Test
-    fun `tier 1 defaults - premium locked, onboarding pending`() {
+    fun `paid 1_0 defaults - every theme included, onboarding pending`() {
         val defaults = AppSettings()
-        assertFalse(defaults.premiumUnlocked)
+        assertTrue(defaults.premiumUnlocked)
         assertFalse(defaults.onboardingComplete)
     }
 }

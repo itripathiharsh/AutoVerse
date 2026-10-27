@@ -16,14 +16,15 @@ val releaseSigningConfigured =
 
 android {
     namespace = "com.autoverse.launcher"
-    compileSdk = 34
+    compileSdk = 36
+    buildToolsVersion = "36.0.0"
 
     defaultConfig {
         applicationId = "com.autoverse.launcher"
         minSdk = 23
-        targetSdk = 34
-        versionCode = 38
-        versionName = "0.28.5-maplibre-map"
+        targetSdk = 36
+        versionCode = 39
+        versionName = "1.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         ndk {
@@ -104,38 +105,12 @@ android {
 
     packaging {
         jniLibs {
-            // Compress native libraries: libvosk.so stores ~17 MB uncompressed
-            // (offline voice, Tier 2). Compression trades install-time
-            // extraction for roughly half the APK size.
+            // Compressed native libraries (MapLibre): a much smaller download for
+            // buyers; Android extracts them once at install.
             useLegacyPackaging = true
         }
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
-            // JNA ships desktop/other-platform natives as resources; only the
-            // Android ABIs we build are relevant (offline voice, Tier 2).
-            excludes += "com/sun/jna/aix-ppc/**"
-            excludes += "com/sun/jna/aix-ppc64/**"
-            excludes += "com/sun/jna/darwin-x86-64/**"
-            excludes += "com/sun/jna/darwin-aarch64/**"
-            excludes += "com/sun/jna/win32-x86/**"
-            excludes += "com/sun/jna/win32-x86-64/**"
-            excludes += "com/sun/jna/win32-aarch64/**"
-            excludes += "com/sun/jna/freebsd-x86/**"
-            excludes += "com/sun/jna/freebsd-x86-64/**"
-            excludes += "com/sun/jna/openbsd-x86/**"
-            excludes += "com/sun/jna/openbsd-x86-64/**"
-            excludes += "com/sun/jna/linux-ppc/**"
-            excludes += "com/sun/jna/linux-ppc64/**"
-            excludes += "com/sun/jna/linux-ppc64le/**"
-            excludes += "com/sun/jna/linux-mips64el/**"
-            excludes += "com/sun/jna/linux-mipsel/**"
-            excludes += "com/sun/jna/linux-s390x/**"
-            excludes += "com/sun/jna/linux-riscv64/**"
-            excludes += "com/sun/jna/linux-loongarch64/**"
-            excludes += "com/sun/jna/sunos-x86/**"
-            excludes += "com/sun/jna/sunos-x86-64/**"
-            excludes += "com/sun/jna/sunos-sparc/**"
-            excludes += "com/sun/jna/sunos-sparcv9/**"
         }
     }
 }
@@ -164,10 +139,6 @@ dependencies {
     implementation(libs.shizuku.api)
     implementation(libs.shizuku.provider)
     implementation(libs.kotlinx.coroutines.android)
-    implementation(libs.vosk.android) {
-        exclude(module = "jna")
-    }
-    implementation(libs.jna.aar)
 
     coreLibraryDesugaring(libs.desugar.jdk.libs)
 

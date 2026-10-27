@@ -7,6 +7,13 @@ dependency set below was taken from the resolved `releaseRuntimeClasspath`
 shipped set against the packaged release APK; no dependency versions were
 changed in Phase 12, so the table below stands as verified.
 
+> **1.0.0 update (2026-10-27):** shipped set changed. Added: MapLibre Native
+> `org.maplibre.gl:android-sdk` 13.7.1 (BSD-2-Clause; notice shown in Settings → Licenses)
+> with OkHttp 4.12 / Timber 5 (Apache-2.0), Shizuku API 13.1.5 (Apache-2.0);
+> map data © OpenStreetMap contributors (ODbL) via OpenFreeMap. Removed:
+> Leaflet (WebView cockpit deleted), Vosk and JNA (voice removed). Kotlin
+> stdlib 2.2.21. The tables below predate this update.
+
 ## Shipped dependencies and licenses
 
 ### First-level runtime dependencies

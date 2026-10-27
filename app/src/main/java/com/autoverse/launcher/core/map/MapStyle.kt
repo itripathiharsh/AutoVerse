@@ -32,6 +32,13 @@ object MapStyle {
     /** Puck/camera animation never runs faster than the map itself. */
     const val LOCATION_ANIMATION_MAX_FPS = 30
 
+    /**
+     * Layers hidden in lite mode (Constrained profile). OpenFreeMap's styles
+     * have no 3D or POI layers; at driving zoom the remaining extras are the
+     * dense building footprints and one-way arrows — neither helps a driver.
+     */
+    val LITE_HIDDEN_LAYERS: Set<String> = setOf("building", "road_oneway", "road_oneway_opposite")
+
     fun styleUrl(night: Boolean): String = STYLE_HOST + if (night) NIGHT_STYLE else DAY_STYLE
 
     /**

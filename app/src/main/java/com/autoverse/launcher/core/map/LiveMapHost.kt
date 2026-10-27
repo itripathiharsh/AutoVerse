@@ -24,6 +24,8 @@ import org.maplibre.android.maps.MapLibreMapOptions
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
 import org.maplibre.android.offline.OfflineManager
+import org.maplibre.android.style.layers.Property
+import org.maplibre.android.style.layers.PropertyFactory
 
 /**
  * Owns the single MapLibre [MapView] for the activity. Home and Maps both
@@ -108,6 +110,20 @@ class LiveMapHost(
 
     fun setMaxFps(fps: Int) = mapView.setMaximumFps(fps)
 
+    private var lite = false
+
+    /** Lite mode hides layers that cost frame time without helping a driver. */
+    fun setLite(enabled: Boolean) {
+        if (enabled == lite) return
+        lite = enabled
+        map?.style?.let(::applyLite)
+    }
+
+    private fun applyLite(style: Style) {
+        val visibility = PropertyFactory.visibility(if (lite) Property.NONE else Property.VISIBLE)
+        MapStyle.LITE_HIDDEN_LAYERS.forEach { id -> style.getLayer(id)?.setProperties(visibility) }
+    }
+
     /** Feeds a GPS fix; ignored until it represents real movement. */
     fun updateLocation(data: SpeedometerData) {
         val lat = data.latitude ?: return
@@ -145,6 +161,7 @@ class LiveMapHost(
         styleReady = false
         readyMap.setStyle(Style.Builder().fromUri(url)) { style ->
             loadedStyleUrl = url
+            applyLite(style)
             styleReady = true
             activateLocation(readyMap, style)
         }

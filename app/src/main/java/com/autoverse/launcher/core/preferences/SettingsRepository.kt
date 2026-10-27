@@ -53,7 +53,6 @@ class SettingsRepository(private val context: Context) {
                 ),
                 premiumUnlocked = preferences[KEY_PREMIUM_UNLOCKED] ?: defaults.premiumUnlocked,
                 onboardingComplete = preferences[KEY_ONBOARDING_COMPLETE] ?: defaults.onboardingComplete,
-                offlineVoiceEnabled = preferences[KEY_OFFLINE_VOICE] ?: defaults.offlineVoiceEnabled,
                 themeSoundsEnabled = preferences[KEY_THEME_SOUNDS] ?: defaults.themeSoundsEnabled,
                 appsRecentCollapsed = preferences[KEY_APPS_RECENT_COLLAPSED] ?: defaults.appsRecentCollapsed,
                 mapsPlacesCollapsed = preferences[KEY_MAPS_PLACES_COLLAPSED] ?: defaults.mapsPlacesCollapsed,
@@ -66,10 +65,6 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setOnboardingComplete(complete: Boolean) {
         context.settingsDataStore.edit { it[KEY_ONBOARDING_COMPLETE] = complete }
-    }
-
-    suspend fun setOfflineVoiceEnabled(enabled: Boolean) {
-        context.settingsDataStore.edit { it[KEY_OFFLINE_VOICE] = enabled }
     }
 
     suspend fun setThemeSoundsEnabled(enabled: Boolean) {
@@ -163,7 +158,6 @@ class SettingsRepository(private val context: Context) {
         val KEY_NAVIGATION_PACKAGE = stringPreferencesKey("navigation_package")
         val KEY_PREMIUM_UNLOCKED = booleanPreferencesKey("premium_unlocked")
         val KEY_ONBOARDING_COMPLETE = booleanPreferencesKey("onboarding_complete")
-        val KEY_OFFLINE_VOICE = booleanPreferencesKey("offline_voice")
         val KEY_THEME_SOUNDS = booleanPreferencesKey("theme_sounds")
         val KEY_APPS_RECENT_COLLAPSED = booleanPreferencesKey("apps_recent_collapsed")
         val KEY_MAPS_PLACES_COLLAPSED = booleanPreferencesKey("maps_places_collapsed")

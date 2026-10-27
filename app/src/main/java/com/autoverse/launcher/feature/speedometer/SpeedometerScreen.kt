@@ -79,8 +79,6 @@ fun SpeedometerScreen(
     weatherState: WeatherUiState,
     onResetTrip: () -> Unit = {},
     onRefreshWeather: () -> Unit = {},
-    onStartSpeedometer: () -> Unit = {},
-    onStopSpeedometer: () -> Unit = {},
     onOpenHome: () -> Unit = {},
     onOpenAppDrawer: () -> Unit = {},
     onOpenNavigation: () -> Unit = {},
@@ -89,14 +87,9 @@ fun SpeedometerScreen(
     onOpenSettings: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    // GPS is owned by the app root (runs while AutoVerse is visible); this page
+    // must not stop it on exit, or Home's speed panel and map lose their fix.
     val colors = LocalAutoVerseColors.current
-
-    DisposableEffect(Unit) {
-        onStartSpeedometer()
-        onDispose {
-            onStopSpeedometer()
-        }
-    }
 
     Box(
         modifier = modifier

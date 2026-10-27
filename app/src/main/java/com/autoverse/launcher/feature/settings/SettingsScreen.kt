@@ -1249,18 +1249,21 @@ private fun AboutSettings(onReplayOnboarding: () -> Unit) {
         icon = Icons.Outlined.Description,
     ) {
         Text(
-            text = "Kotlin, AndroidX, Jetpack Compose, Okio, OkHttp, Gson, " +
-                "and Timber ship under Apache-2.0. Leaflet (cockpit map) " +
-                "ships under BSD-2-Clause. desugar_jdk_libs ships under " +
-                "GPL-2.0 with the Classpath exception. JUnit (test-only, " +
-                "not in the APK) is EPL-1.0.",
+            text = "MapLibre Native \u2014 Copyright (c) MapLibre contributors, " +
+                "BSD-2-Clause. Redistribution in binary form is permitted provided " +
+                "this copyright notice, the list of conditions and the disclaimer are " +
+                "reproduced: the software is provided \u201cas is\u201d without any " +
+                "warranty; in no event shall the authors be liable for any damages " +
+                "arising from its use.",
             style = MaterialTheme.typography.bodyMedium,
             color = colors.textSecondary,
         )
         Spacer(Modifier.height(AutoVerseSpacing.xs))
         Text(
-            text = "Full notice texts ship with the project\u2019s license " +
-                "documentation in the source tree.",
+            text = "Map data \u00a9 OpenStreetMap contributors (ODbL), tiles by " +
+                "OpenFreeMap and OpenMapTiles. Kotlin, AndroidX, Jetpack Compose, " +
+                "OkHttp, Okio, Timber and Shizuku API ship under Apache-2.0; " +
+                "desugar_jdk_libs under GPL-2.0 with the Classpath exception.",
             style = MaterialTheme.typography.bodyMedium,
             color = colors.textFaint,
         )
@@ -1272,15 +1275,16 @@ private fun AboutSettings(onReplayOnboarding: () -> Unit) {
         icon = Icons.Outlined.Lock,
     ) {
         Text(
-            text = "No telemetry, analytics, advertising, or crash reporting. " +
-                "Settings and favorites stay on this device.",
+            text = "No account, telemetry, analytics, advertising or crash reporting. " +
+                "Location, apps, destinations and settings stay on this device.",
             style = MaterialTheme.typography.bodyMedium,
             color = colors.textSecondary,
         )
         Spacer(Modifier.height(AutoVerseSpacing.xs))
         Text(
-            text = "Network access is used only by the experimental embedded " +
-                "map, which is off by default.",
+            text = "The network is used for map tiles (OpenFreeMap), weather " +
+                "(Open-Meteo, location rounded to ~1 km) and album artwork your " +
+                "music app provides.",
             style = MaterialTheme.typography.bodyMedium,
             color = colors.textFaint,
         )

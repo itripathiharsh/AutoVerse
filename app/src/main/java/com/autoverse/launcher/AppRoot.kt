@@ -35,6 +35,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.autoverse.launcher.core.connectivity.ConnectivityStatus
 import com.autoverse.launcher.core.design.AutoVerseTheme
 import com.autoverse.launcher.core.design.components.LocalLiveMapHost
+import com.autoverse.launcher.core.design.components.LocalMapEngineState
+import com.autoverse.launcher.core.design.components.MapEngineState
 import com.autoverse.launcher.core.design.components.rememberLiveMapHost
 import com.autoverse.launcher.core.design.tokens.effectiveReducedMotion
 import com.autoverse.launcher.core.diagnostics.buildAccessReport
@@ -50,7 +52,6 @@ import com.autoverse.launcher.core.util.formatFullDate
 import com.autoverse.launcher.feature.apps.AppDrawerScreen
 import com.autoverse.launcher.feature.diagnostics.DiagnosticsScreen
 import com.autoverse.launcher.feature.home.DashboardData
-import com.autoverse.launcher.feature.cockpit.CockpitScreen
 import com.autoverse.launcher.feature.home.HomeScreen
 import com.autoverse.launcher.feature.home.HomeScreenContent
 import com.autoverse.launcher.feature.navigation.NavigationScreen
@@ -64,7 +65,7 @@ import com.autoverse.launcher.feature.speedometer.SpeedometerScreen
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 
-enum class Screen { HOME, NAVIGATION, APP_DRAWER, SPEEDOMETER, OBD, SETTINGS, DIAGNOSTICS, COCKPIT, MAP_PROBE, MAP_DISPLAY_PROBE }
+enum class Screen { HOME, NAVIGATION, APP_DRAWER, SPEEDOMETER, OBD, SETTINGS, DIAGNOSTICS, MAP_PROBE, MAP_DISPLAY_PROBE }
 
 @Composable
 fun AppRoot(viewModel: MainViewModel = viewModel()) {
@@ -163,6 +164,25 @@ fun AppRoot(viewModel: MainViewModel = viewModel()) {
         viewModel.noteNotificationAccess(notificationAccessGranted)
     }
 
+    // GPS (speed panel, live map, Speed page) runs whenever AutoVerse is
+    // started — not tied to one screen — and stops in the background. The
+    // location grant is a key so tracking begins the moment it is given.
+    val gpsLifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(gpsLifecycleOwner, locationGranted) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> viewModel.onAppForeground()
+                Lifecycle.Event.ON_STOP -> viewModel.onAppBackground()
+                else -> Unit
+            }
+        }
+        if (gpsLifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+            viewModel.onAppForeground()
+        }
+        gpsLifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { gpsLifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     // Call observation runs only while Home is on screen and AutoVerse is
     // started: the platform pushes state changes (and the current state on
     // registration), so stopping in the background loses nothing.
@@ -256,17 +276,22 @@ fun AppRoot(viewModel: MainViewModel = viewModel()) {
             systemAnimationsDisabled = systemAnimationsDisabled,
         ),
     ) {
-        // One live map for the whole session; Home and Maps share it.
-        val liveMapHost = rememberLiveMapHost()
+        // One live map for the whole session; Home and Maps share it. It is
+        // created after Home's first frame, with the engine loaded off-thread.
+        var mapEngineState by remember { mutableStateOf(MapEngineState.STARTING) }
+        val liveMapHost = rememberLiveMapHost { mapEngineState = it }
         CompositionLocalProvider(
             LocalLiveMapHost provides liveMapHost,
+            LocalMapEngineState provides mapEngineState,
             LocalPerformanceSpec provides performanceSpec,
             LocalDensity provides Density(
                 density = baseDensity.density,
                 fontScale = baseDensity.fontScale * settings.textScale,
             ),
         ) {
-            BackHandler(enabled = screen != Screen.HOME) { screen = Screen.HOME }
+            // Always consumed: a launcher's Home has nowhere to go back to, and with
+            // predictive back (targetSdk 36) an unhandled gesture would animate Home away.
+            BackHandler(enabled = true) { if (screen != Screen.HOME) screen = Screen.HOME }
 
             if (!settings.onboardingComplete) {
                 OnboardingScreen(
@@ -388,8 +413,6 @@ fun AppRoot(viewModel: MainViewModel = viewModel()) {
                             weatherState = weatherState,
                             onResetTrip = viewModel::resetTrip,
                             onRefreshWeather = viewModel::refreshWeather,
-                            onStartSpeedometer = viewModel::startSpeedometer,
-                            onStopSpeedometer = viewModel::stopSpeedometer,
                             onOpenHome = { screen = Screen.HOME },
                             onOpenAppDrawer = {
                                 drawerQuery = ""
@@ -579,13 +602,6 @@ fun AppRoot(viewModel: MainViewModel = viewModel()) {
                             },
                             onOpenMapProbe = { screen = Screen.MAP_PROBE },
                             onOpenMapDisplayProbe = { screen = Screen.MAP_DISPLAY_PROBE },
-                        )
-                    }
-
-                    Screen.COCKPIT -> {
-                        CockpitScreen(
-                            viewModel = viewModel,
-                            modifier = Modifier.fillMaxSize(),
                         )
                     }
 

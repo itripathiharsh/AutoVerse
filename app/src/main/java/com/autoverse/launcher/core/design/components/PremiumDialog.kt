@@ -9,10 +9,10 @@ import androidx.compose.ui.res.stringResource
 import com.autoverse.launcher.R
 
 /**
- * Premium entitlement dialog. Honest by design: this build collects no
- * payment — the button grants the local entitlement so every premium theme
- * unlocks, and says exactly that. When distribution starts, Play Billing
- * replaces the grant action behind the same flag.
+ * Theme entitlement dialog. 1.0 is a paid app with every theme included, so
+ * the entitlement defaults to granted and this dialog only appears if it was
+ * cleared (e.g. a settings reset from an older build); it restores access
+ * without any payment. A free-with-upgrade model would put Play Billing here.
  */
 @Composable
 fun PremiumUnlockDialog(
@@ -24,14 +24,13 @@ fun PremiumUnlockDialog(
         title = { Text("Premium themes") },
         text = {
             Text(
-                "Sakura, Neon Tokyo, Shonen, Gotham and Hot Rod ship with " +
-                    "AutoVerse Pro. This early-access build unlocks everything " +
-                    "free \u2014 no account, no payment.",
+                "Every AutoVerse theme is included with your purchase \u2014 no " +
+                    "account, no extra payment.",
                 style = MaterialTheme.typography.bodyMedium,
             )
         },
         confirmButton = {
-            TextButton(onClick = onUnlock) { Text("Unlock everything (early access)") }
+            TextButton(onClick = onUnlock) { Text("Unlock all themes") }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Maybe later") }

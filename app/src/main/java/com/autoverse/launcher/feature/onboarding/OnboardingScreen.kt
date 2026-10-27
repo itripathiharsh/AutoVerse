@@ -90,7 +90,6 @@ fun OnboardingScreen(
     }
 
     val pagerState = rememberPagerState(pageCount = { 4 })
-    val voiceAvailable = remember { hasVoiceRecognizer(context) }
 
     Column(
         modifier = modifier
@@ -132,7 +131,6 @@ fun OnboardingScreen(
                             ),
                         )
                     },
-                    voiceAvailable = voiceAvailable,
                     onSetDefaultLauncher = { openHomeChooser(context) },
                 )
                 else -> FinishPage()
@@ -201,8 +199,8 @@ private fun WelcomePage() {
         )
         Spacer(Modifier.height(AutoVerseSpacing.sm))
         Text(
-            "A launcher built for the car: instant apps, live media, " +
-                "navigation hand-off and voice \u2014 offline first, 2 MB small.",
+            "A launcher built for the car: a live map, your music, GPS speed " +
+                "and every app one tap away \u2014 no account, nothing tracked.",
             style = MaterialTheme.typography.bodyMedium,
             color = colors.textSecondary,
             textAlign = TextAlign.Center,
@@ -327,7 +325,6 @@ private fun SetupPage(
     onOpenMediaAccess: () -> Unit,
     locationGranted: Boolean,
     onRequestLocation: () -> Unit,
-    voiceAvailable: Boolean,
     onSetDefaultLauncher: () -> Unit,
 ) {
     val colors = LocalAutoVerseColors.current
@@ -356,14 +353,6 @@ private fun SetupPage(
             actionText = if (locationGranted) "Granted" else "Grant",
             onAction = onRequestLocation,
             positive = locationGranted,
-        )
-        SetupRow(
-            icon = { Icon(Icons.Outlined.GraphicEq, contentDescription = null, tint = colors.accent) },
-            title = "Voice assistant",
-            detail = if (voiceAvailable) "Speech service found \u2014 \u201copen Spotify\u201d works." else "No speech service found \u2014 voice stays disabled.",
-            actionText = if (voiceAvailable) "Ready" else "N/A",
-            onAction = {},
-            positive = voiceAvailable,
         )
     }
 }
@@ -414,24 +403,14 @@ private fun FinishPage() {
         Text("You're set", style = MaterialTheme.typography.headlineSmall, color = colors.textPrimary)
         Spacer(Modifier.height(AutoVerseSpacing.sm))
         Text(
-            "Tap the orb and say \u201copen Spotify\u201d. Change anything later in Settings \u2014 " +
-                "including running this setup again.",
+            "Home is your cockpit: map, music and speed. Change anything later in " +
+                "Settings \u2014 including running this setup again.",
             style = MaterialTheme.typography.bodyMedium,
             color = colors.textSecondary,
             textAlign = TextAlign.Center,
         )
     }
 }
-
-private fun hasVoiceRecognizer(context: Context): Boolean =
-    try {
-        context.packageManager.resolveActivity(
-            Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH),
-            PackageManager.MATCH_DEFAULT_ONLY,
-        ) != null
-    } catch (_: Exception) {
-        false
-    }
 
 private fun openHomeChooser(context: Context) {
     try {

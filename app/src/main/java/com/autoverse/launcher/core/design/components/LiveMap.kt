@@ -12,8 +12,16 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.withFrameNanos
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.maplibre.android.LibraryLoader
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,6 +38,7 @@ import com.autoverse.launcher.core.location.GpsStatus
 import com.autoverse.launcher.core.location.SpeedometerData
 import com.autoverse.launcher.core.map.LiveMapHost
 import com.autoverse.launcher.core.map.MapStyle
+import com.autoverse.launcher.core.model.PerformanceProfile
 import com.autoverse.launcher.core.performance.LocalPerformanceSpec
 
 /**
@@ -39,16 +48,49 @@ import com.autoverse.launcher.core.performance.LocalPerformanceSpec
  */
 val LocalLiveMapHost = staticCompositionLocalOf<LiveMapHost?> { null }
 
-/** Creates the one [LiveMapHost] for this activity; call once, at the app root. */
+/** Whether the map engine could start on this device. */
+enum class MapEngineState { STARTING, READY, UNAVAILABLE }
+
+/**
+ * Creates the one [LiveMapHost] for this activity; call once, at the app
+ * root. The launcher draws its first frame before anything map-related runs,
+ * and the ~15 MB native engine loads on a background thread, so Home appears
+ * instantly even on slow head units. Returns null until the engine is ready
+ * (or for good when it cannot start — the panel then says so, it never crashes).
+ */
 @Composable
-fun rememberLiveMapHost(): LiveMapHost {
+fun rememberLiveMapHost(onStateChange: (MapEngineState) -> Unit = {}): LiveMapHost? {
+    var state by remember { mutableStateOf(MapEngineState.STARTING) }
+    LaunchedEffect(Unit) {
+        withFrameNanos { } // Home's first frame is on screen before any map work
+        state = try {
+            withContext(Dispatchers.Default) { LibraryLoader.load() }
+            MapEngineState.READY
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Throwable) {
+            MapEngineState.UNAVAILABLE
+        }
+        onStateChange(state)
+    }
+    if (state != MapEngineState.READY) return null
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val background = LocalAutoVerseColors.current.backgroundTop.toArgb()
-    val host = remember(context, lifecycle) { LiveMapHost(context, lifecycle, background) }
-    DisposableEffect(host) { onDispose { host.release() } }
+    val host = remember(context, lifecycle) {
+        try {
+            LiveMapHost(context, lifecycle, background)
+        } catch (_: Throwable) {
+            null
+        }
+    }
+    LaunchedEffect(host) { if (host == null) onStateChange(MapEngineState.UNAVAILABLE) }
+    DisposableEffect(host) { onDispose { host?.release() } }
     return host
 }
+
+/** Engine availability for the panels' placeholder text. */
+val LocalMapEngineState = staticCompositionLocalOf { MapEngineState.STARTING }
 
 /**
  * Live, GPU-rendered map (MapLibre + free OpenFreeMap tiles) following the
@@ -64,7 +106,9 @@ fun LiveMap(
     val colors = LocalAutoVerseColors.current
     val host = LocalLiveMapHost.current
     val night = colors.backgroundTop.luminance() < 0.5f
-    val maxFps = LocalPerformanceSpec.current.mapMaxFps
+    val spec = LocalPerformanceSpec.current
+    val maxFps = spec.mapMaxFps
+    val lite = spec.profile == PerformanceProfile.CONSTRAINED
 
     Box(
         modifier = modifier
@@ -74,6 +118,7 @@ fun LiveMap(
         if (host != null) {
             LaunchedEffect(host, night) { host.setNight(night) }
             LaunchedEffect(host, maxFps) { host.setMaxFps(maxFps) }
+            LaunchedEffect(host, lite) { host.setLite(lite) }
             LaunchedEffect(host, speedometerData.fixElapsedMs, speedometerData.gpsStatus) {
                 if (speedometerData.gpsStatus == GpsStatus.LIVE) host.updateLocation(speedometerData)
             }
@@ -88,7 +133,10 @@ fun LiveMap(
             )
         }
 
+        val engine = LocalMapEngineState.current
         val note = when {
+            host == null && engine == MapEngineState.UNAVAILABLE -> "Map unavailable on this device"
+            host == null -> null
             !hasLocationPermission -> "No location access"
             speedometerData.gpsStatus == GpsStatus.PROVIDER_OFF -> "Location is switched off"
             speedometerData.gpsStatus == GpsStatus.STALE -> "GPS signal lost"

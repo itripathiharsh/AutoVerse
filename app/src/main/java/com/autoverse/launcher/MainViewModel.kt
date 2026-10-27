@@ -44,8 +44,6 @@ import com.autoverse.launcher.core.obd.ObdConnectionState
 import com.autoverse.launcher.core.obd.ObdDtcState
 import com.autoverse.launcher.core.obd.SystemObdRepository
 import com.autoverse.launcher.core.sound.ThemeSoundManager
-import com.autoverse.launcher.core.voice.OfflineVoiceEngine
-import com.autoverse.launcher.core.voice.OfflineVoiceState
 import com.autoverse.launcher.core.weather.WeatherRepository
 import com.autoverse.launcher.core.weather.WeatherUiState
 import com.autoverse.launcher.core.model.AppearanceMode
@@ -423,76 +421,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _obdState.value = ObdConnectionState.Disconnected
     }
 
-    // ---- Tier 2 part 2: offline wake-word voice (Vosk, opt-in) ----
-
-    private val _offlineVoiceState = MutableStateFlow<OfflineVoiceState>(OfflineVoiceState.Disabled)
-
-    /** Download/listen/capture states surfaced to the cockpit orb. */
-    val offlineVoiceState: StateFlow<OfflineVoiceState> = _offlineVoiceState.asStateFlow()
-
-    private val _offlineVoiceCommands = MutableSharedFlow<String>(extraBufferCapacity = 4)
-
-    /** Transcribed commands; the cockpit routes them like tap-to-talk. */
-    val offlineVoiceCommands: SharedFlow<String> = _offlineVoiceCommands.asSharedFlow()
-
-    private val offlineVoiceEngine: OfflineVoiceEngine by lazy {
-        OfflineVoiceEngine(
-            context = application,
-            scope = viewModelScope,
-            onState = { _offlineVoiceState.value = it },
-            onCommand = { command -> _offlineVoiceCommands.tryEmit(command) },
-        )
-    }
-
-    private var appForeground = false
-
-    /** Mic-permission prompt result is pushed through the bridge handler. */
-    fun onMicPermissionResult(granted: Boolean) {
-        if (granted) {
-            applyOfflineVoice(enabled = settings.value.offlineVoiceEnabled, micGranted = true)
-        } else {
-            _offlineVoiceState.value = OfflineVoiceState.Error(OfflineVoiceEngine.MIC_PERMISSION_MESSAGE)
-        }
-    }
-
-    fun hasMicPermission(): Boolean = offlineVoiceEngine.hasMicPermission
-
+    /**
+     * AutoVerse became visible: GPS runs for as long as any screen is shown
+     * (Home's speed panel and live map depend on it, not just the Speed page).
+     * Safe to call repeatedly; without the location grant it only records
+     * NO_ACCESS.
+     */
     fun onAppForeground() {
-        appForeground = true
         speedometerManager.start()
         refreshObdAdapters()
-        applyOfflineVoice(enabled = settings.value.offlineVoiceEnabled, micGranted = null)
     }
 
+    /** AutoVerse left the screen: no GPS while nothing can show it. */
     fun onAppBackground() {
-        appForeground = false
         speedometerManager.stop()
-        if (settings.value.offlineVoiceEnabled) {
-            offlineVoiceEngine.stop()
-            _offlineVoiceState.value = OfflineVoiceState.Disabled
-        }
-    }
-
-    private fun applyOfflineVoice(enabled: Boolean, micGranted: Boolean?) {
-        when {
-            !enabled -> {
-                offlineVoiceEngine.stop()
-                _offlineVoiceState.value = OfflineVoiceState.Disabled
-            }
-            micGranted == false ->
-                _offlineVoiceState.value = OfflineVoiceState.Error(OfflineVoiceEngine.MIC_PERMISSION_MESSAGE)
-            !offlineVoiceEngine.hasMicPermission ->
-                _offlineVoiceState.value = OfflineVoiceState.Error(OfflineVoiceEngine.MIC_PERMISSION_MESSAGE)
-            !appForeground -> offlineVoiceEngine.stop() // battery: never listen in background
-            else -> offlineVoiceEngine.start()
-        }
-    }
-
-    fun setOfflineVoiceEnabled(enabled: Boolean) {
-        viewModelScope.launch {
-            settingsRepository.setOfflineVoiceEnabled(enabled)
-            // the settings collector applies the runtime change
-        }
     }
 
     fun setPremiumUnlocked(unlocked: Boolean) {
@@ -965,12 +907,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     init {
-        viewModelScope.launch {
-            settings.map { it.offlineVoiceEnabled }.distinctUntilChanged().collect { enabled ->
-                applyOfflineVoice(enabled = enabled, micGranted = null)
-            }
-        }
-
         application.registerComponentCallbacks(memoryTrimCallback)
         // One-shot schema upgrade; a no-op while the stamp is current. The
         // result also feeds the diagnostics store-health tile and startup log.

@@ -7,6 +7,14 @@ import org.junit.Test
 class WeatherUiStateTest {
 
     @Test
+    fun `weather request sends only ~1 km precision, never the exact position`() {
+        val url = weatherRequestUrl(latitude = 28.613912, longitude = 77.209021)
+        assertTrue(url.contains("latitude=28.61&"))
+        assertTrue(url.contains("longitude=77.21&"))
+        assertTrue(!url.contains("28.6139") && !url.contains("77.2090"))
+    }
+
+    @Test
     fun `available weather state exposes temperature and weather condition`() {
         val weather = WeatherUiState.Available(
             temperatureC = 22,

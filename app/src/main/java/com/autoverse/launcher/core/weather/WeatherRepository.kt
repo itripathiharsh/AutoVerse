@@ -28,6 +28,15 @@ sealed interface WeatherUiState {
     ) : WeatherUiState
 }
 
+/**
+ * Open-Meteo request for current weather. Coordinates are rounded to two
+ * decimals (~1 km) before they leave the device: weather needs no more
+ * precision, and the exact position is never sent anywhere.
+ */
+fun weatherRequestUrl(latitude: Double, longitude: Double): String =
+    "https://api.open-meteo.com/v1/forecast?latitude=%.2f&longitude=%.2f&current=temperature_2m,weather_code,wind_speed_10m"
+        .format(Locale.US, latitude, longitude)
+
 class WeatherRepository {
 
     private val _weatherState = MutableStateFlow<WeatherUiState>(WeatherUiState.Unavailable("Awaiting location"))
@@ -65,8 +74,7 @@ class WeatherRepository {
             }
             var connection: HttpURLConnection? = null
             try {
-                val urlString = "https://api.open-meteo.com/v1/forecast?latitude=%.4f&longitude=%.4f&current=temperature_2m,weather_code,wind_speed_10m"
-                    .format(Locale.US, latitude, longitude)
+                val urlString = weatherRequestUrl(latitude, longitude)
                 val url = URL(urlString)
                 connection = (url.openConnection() as HttpURLConnection).apply {
                     connectTimeout = 6000

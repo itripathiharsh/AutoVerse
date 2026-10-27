@@ -51,12 +51,14 @@ data class AppSettings(
     val appsRecentCollapsed: Boolean = false,
     /** Maps page: the 30% destinations panel is collapsed and the map region uses the width. */
     val mapsPlacesCollapsed: Boolean = false,
-    /** Premium entitlement (0.21.0). Local flag for now; Play Billing plugs into this. */
-    val premiumUnlocked: Boolean = false,
+    /**
+     * Premium themes entitlement. 1.0 ships as a paid app with every theme
+     * included, so this defaults to true; a future free-with-upgrade model
+     * would default it to false and grant it from Play Billing.
+     */
+    val premiumUnlocked: Boolean = true,
     /** Tier 1: false until the first-run onboarding finishes. */
     val onboardingComplete: Boolean = false,
-    /** Tier 2: opt-in offline wake-word voice ("Hey AutoVerse"). Download-on-first-use model. */
-    val offlineVoiceEnabled: Boolean = false,
     /** Theme system Phase E: synthesized confirmation sounds; off by default. */
     val themeSoundsEnabled: Boolean = false,
 )

@@ -3,9 +3,9 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <!--
-        Cockpit WebView only: Leaflet map tiles, Nominatim geocoding, and
-        http(s) artwork URLs from media sessions. The launcher itself and the
-        navigation hand-off work fully offline.
+        Live map tiles (OpenFreeMap), weather (Open-Meteo, coordinates rounded
+        to ~1 km) and http(s) artwork URLs supplied by media sessions. The
+        launcher itself and the navigation hand-off work fully offline.
     -->
     <uses-permission android:name="android.permission.INTERNET" />
 
@@ -34,18 +34,11 @@
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
     <!--
-        Tier 2 (offline voice): on-device wake-word recognition runs only
-        while the app is foregrounded and only after the user opts in from
-        Settings. Audio never leaves the device (Vosk is fully local).
-    -->
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
-
-    <!--
-        Cockpit live GPS only (map position, recenter, speed readout). The
-        WebView geolocation prompt is granted for the cockpit origin, and
-        MainActivity requests the runtime grant on first launch. No other
-        surface reads location; navigation hand-off never receives
-        coordinates it did not get from the user's typed destination.
+        Foreground GPS only, while AutoVerse is on screen: live-map position,
+        speed readout and weather. Requested from onboarding (with an
+        explanation) or the speed panel's "Allow location". Never stored or
+        sent anywhere except the rounded weather lookup; navigation hand-off
+        never receives coordinates it did not get from the typed destination.
     -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
@@ -134,13 +127,6 @@
         <package android:name="com.google.android.apps.maps" />
         <package android:name="com.waze" />
 
-        <!--
-            Onboarding (Tier 1): resolves the device speech service so the
-            voice-assistant row shows real availability instead of a guess.
-        -->
-        <intent>
-            <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
-        </intent>
         <!-- Shizuku: virtual-display helper (map region probe). -->
         <package android:name="moe.shizuku.privileged.api" />
         <package android:name="rikka.sui" />

@@ -165,32 +165,44 @@ fun HomeScreen(
             }
         }
     }
-    val media = MediaSection(
-        state = mediaState,
-        loadArtwork = loadMediaArtwork,
-        onCommand = { command -> scope.launch { reportMediaOutcome(onMediaCommand(command)) } },
-        onSkipToQueue = { id -> scope.launch { reportMediaOutcome(onSkipToQueueItem(id)) } },
-        onOpenAccess = {
-            if (!onOpenMediaAccessSettings()) {
-                scope.launch {
-                    snackbarHostState.showSnackbar("Couldn't open system settings", withDismissAction = true)
+    // Sections are remembered on their own inputs: GPS ticks every second, and
+    // without this the music and rail panels would recompose on every tick.
+    val media = remember(
+        mediaState, loadMediaArtwork, onMediaCommand, onSkipToQueueItem,
+        onOpenMediaAccessSettings, onOpenAppDrawer, onRefreshMedia,
+    ) {
+        MediaSection(
+            state = mediaState,
+            loadArtwork = loadMediaArtwork,
+            onCommand = { command -> scope.launch { reportMediaOutcome(onMediaCommand(command)) } },
+            onSkipToQueue = { id -> scope.launch { reportMediaOutcome(onSkipToQueueItem(id)) } },
+            onOpenAccess = {
+                if (!onOpenMediaAccessSettings()) {
+                    scope.launch {
+                        snackbarHostState.showSnackbar("Couldn't open system settings", withDismissAction = true)
+                    }
                 }
-            }
-        },
-        onBrowseApps = onOpenAppDrawer,
-        onRefresh = onRefreshMedia,
-    )
-    val maps = MapsSection(
-        status = mapsStatus,
-        destinationTargetLabel = destinationTargetLabel,
-        query = mapsDestinationQuery,
-        onQueryChange = onMapsDestinationQueryChange,
-        onNavigate = { destination ->
-            launchFeedback.run(destinationTargetLabel) { onNavigateToDestination(destination) }
-        },
-        onOpenMaps = { launchFeedback.run("Google Maps", onOpenGoogleMaps) },
-        recentDestinations = recentDestinations,
-    )
+            },
+            onBrowseApps = onOpenAppDrawer,
+            onRefresh = onRefreshMedia,
+        )
+    }
+    val maps = remember(
+        mapsStatus, destinationTargetLabel, mapsDestinationQuery, onMapsDestinationQueryChange,
+        recentDestinations, launchFeedback, onNavigateToDestination, onOpenGoogleMaps,
+    ) {
+        MapsSection(
+            status = mapsStatus,
+            destinationTargetLabel = destinationTargetLabel,
+            query = mapsDestinationQuery,
+            onQueryChange = onMapsDestinationQueryChange,
+            onNavigate = { destination ->
+                launchFeedback.run(destinationTargetLabel) { onNavigateToDestination(destination) }
+            },
+            onOpenMaps = { launchFeedback.run("Google Maps", onOpenGoogleMaps) },
+            recentDestinations = recentDestinations,
+        )
+    }
     val driving = DrivingSection(
         speedometerData = speedometerData,
         weatherState = weatherState,
@@ -201,14 +213,16 @@ fun HomeScreen(
         onRequestCallPermission = onRequestCallPermission,
         onOpenSpeedometer = onOpenSpeedometer,
     )
-    val rail = RailSection(
-        onOpenAppDrawer = onOpenAppDrawer,
-        onOpenNavigation = onOpenNavigation,
-        onOpenSpeedometer = onOpenSpeedometer,
-        onOpenObd = onOpenObd,
-        onOpenDiagnostics = onOpenDiagnostics,
-        onOpenSettings = onOpenSettings,
-    )
+    val rail = remember(onOpenAppDrawer, onOpenNavigation, onOpenSpeedometer, onOpenObd, onOpenDiagnostics, onOpenSettings) {
+        RailSection(
+            onOpenAppDrawer = onOpenAppDrawer,
+            onOpenNavigation = onOpenNavigation,
+            onOpenSpeedometer = onOpenSpeedometer,
+            onOpenObd = onOpenObd,
+            onOpenDiagnostics = onOpenDiagnostics,
+            onOpenSettings = onOpenSettings,
+        )
+    }
 
     Scaffold(
         modifier = modifier,
