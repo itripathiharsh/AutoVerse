@@ -107,6 +107,8 @@ internal data class DrivingSection(
     val hasCallPermission: Boolean = false,
     val onRequestCallPermission: () -> Unit = {},
     val onOpenSpeedometer: () -> Unit = {},
+    /** The current road's speed limit when known (road data / route). */
+    val speedLimitKmh: Int? = null,
 )
 
 /** Rail callbacks; Home itself is the selected entry. */
@@ -159,6 +161,7 @@ fun HomeScreen(
     onHomeLayoutChange: (HomeLayout) -> Unit = {},
     editingHome: Boolean = false,
     onEditingHomeChange: (Boolean) -> Unit = {},
+    speedLimitKmh: Int? = null,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -219,6 +222,7 @@ fun HomeScreen(
         hasCallPermission = hasCallPermission,
         onRequestCallPermission = onRequestCallPermission,
         onOpenSpeedometer = onOpenSpeedometer,
+        speedLimitKmh = speedLimitKmh,
     )
     val rail = remember(onOpenAppDrawer, onOpenNavigation, onOpenSpeedometer, onOpenObd, onOpenDiagnostics, onOpenSettings) {
         RailSection(
@@ -295,7 +299,6 @@ internal fun HomeScreenContent(
                 connectivity = data.connectivity,
                 chips = chips.coerceAtMost(StatusChipsMode.REDUCED),
                 fpsText = data.fpsText,
-                onOpenDiagnostics = rail.onOpenDiagnostics,
                 onOpenSettings = rail.onOpenSettings,
                 onEditHome = onEditHome,
             )
@@ -368,7 +371,12 @@ private fun CockpitRegions(
         )
     }
     val musicPanel: @Composable (Modifier) -> Unit = { panelModifier ->
-        MusicPanel(media = media, dense = true, modifier = panelModifier)
+        HomeMusicPanel(
+            media = media,
+            onOpenMusic = media.onBrowseApps,
+            compact = geometry.compactPanels,
+            modifier = panelModifier,
+        )
     }
     val speedPanel: @Composable (Modifier) -> Unit = { panelModifier ->
         SpeedOrCallPanel(driving = driving, compact = geometry.compactPanels, modifier = panelModifier)
@@ -419,15 +427,10 @@ private fun SpeedOrCallPanel(driving: DrivingSection, compact: Boolean, modifier
     if (showsIncomingCall(driving.callState, driving.hasCallPermission)) {
         IncomingCallCard(callState = driving.callState, compact = true, modifier = modifier)
     } else {
-        SpeedSummaryCard(
-            speedometerData = driving.speedometerData,
-            hasLocationPermission = driving.hasLocationPermission,
-            onOpenSpeedometer = driving.onOpenSpeedometer,
-            onRequestLocationPermission = driving.onRequestLocationPermission,
-            weatherState = driving.weatherState,
+        HomeSpeedPanel(
+            driving = driving,
+            speedLimitKmh = driving.speedLimitKmh,
             compact = compact,
-            hasCallPermission = driving.hasCallPermission,
-            onRequestCallPermission = driving.onRequestCallPermission,
             modifier = modifier,
         )
     }

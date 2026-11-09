@@ -51,8 +51,10 @@ data class HomeLayout(
 
 data class AppSettings(
     val themeId: AutoVerseThemeId = AutoVerseThemeId.COBALT,
-    val appearanceMode: AppearanceMode = AppearanceMode.SYSTEM,
-    val reducedMotion: Boolean = true,
+    /** Dark-first: a car display is read at night and in glare; Day stays one tap away. */
+    val appearanceMode: AppearanceMode = AppearanceMode.NIGHT,
+    /** Smooth fades and slides are on by default; they are cheap (no blur) even on slow units. */
+    val reducedMotion: Boolean = false,
     val profile: PerformanceProfile = PerformanceProfile.CONSTRAINED,
     /** Phase 9 switch: runs the dashboard with the Constrained workload without changing the profile. */
     val preferSmoothness: Boolean = true,

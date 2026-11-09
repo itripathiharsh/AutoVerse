@@ -16,6 +16,10 @@ data class RouteProgress(
     val distanceToNextManeuver: Double,
     /** The instruction after [nextManeuver], when it follows closely ("then turn right"). */
     val thenManeuver: Maneuver?,
+    /** Speed limit of the road the car is on, when mapped. */
+    val speedLimitKmh: Int? = null,
+    /** Distance to the next speed camera ahead on the route, when one is mapped. */
+    val nextCameraMeters: Double? = null,
 ) {
     val arrived: Boolean get() = remainingMeters <= ARRIVAL_RADIUS_M
 
@@ -75,6 +79,10 @@ fun computeProgress(route: Route, position: GeoPoint, hintSegment: Int = -1): Ro
         next != null && route.cumulativeMeters[second.pointIndex] - route.cumulativeMeters[next.pointIndex] <= THEN_MANEUVER_WITHIN_M
     }
 
+    val limit = route.speedLimits.getOrNull(bestSeg + 1)?.takeIf { it > 0 }
+    val camera = route.cameras.firstOrNull { route.cumulativeMeters[it] > traveled }
+        ?.let { route.cumulativeMeters[it] - traveled }
+
     return RouteProgress(
         segmentIndex = bestSeg,
         traveledMeters = traveled,
@@ -84,6 +92,8 @@ fun computeProgress(route: Route, position: GeoPoint, hintSegment: Int = -1): Ro
         nextManeuver = next,
         distanceToNextManeuver = distToNext.coerceAtLeast(0.0),
         thenManeuver = then,
+        speedLimitKmh = limit,
+        nextCameraMeters = camera,
     )
 }
 
@@ -114,6 +124,16 @@ internal fun projectOnSegment(p: GeoPoint, a: GeoPoint, b: GeoPoint): Pair<Doubl
  * highway speed) and a "now" prompt close to it. Pure for tests.
  */
 enum class PromptStage { FAR, NEAR }
+
+/** Warn this far before a speed camera (further at highway speed). */
+fun cameraWarningMeters(speedKmh: Int?): Double = if ((speedKmh ?: 0) >= 70) 600.0 else 300.0
+
+/**
+ * Over-speed rule: more than [tolerance] km/h above the limit counts, so GPS
+ * jitter at exactly the limit never nags the driver.
+ */
+fun isOverLimit(speedKmh: Int?, limitKmh: Int?, tolerance: Int = 4): Boolean =
+    speedKmh != null && limitKmh != null && limitKmh > 0 && speedKmh > limitKmh + tolerance
 
 fun promptStageFor(distanceToManeuver: Double, speedKmh: Int?): PromptStage? {
     val far = if ((speedKmh ?: 0) >= 70) 1_000.0 else 400.0

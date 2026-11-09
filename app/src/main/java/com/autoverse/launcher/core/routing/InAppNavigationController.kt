@@ -76,8 +76,31 @@ class InAppNavigationController(app: Application) : AndroidViewModel(app) {
     private val _voiceOn = MutableStateFlow(prefs.getBoolean(KEY_VOICE, true))
     val voiceOn: StateFlow<Boolean> = _voiceOn.asStateFlow()
 
+    /** Speed limit of the current road (route when guiding, road lookup otherwise). */
+    private val _speedLimit = MutableStateFlow<Int?>(null)
+    val speedLimit: StateFlow<Int?> = _speedLimit.asStateFlow()
+
+    /** Speed-limit chime/voice and camera warnings; on by default. */
+    private val _alertsOn = MutableStateFlow(prefs.getBoolean(KEY_ALERTS, true))
+    val alertsOn: StateFlow<Boolean> = _alertsOn.asStateFlow()
+
     private var lastPosition: GeoPoint? = null
     private var lastSpeedKmh: Int? = null
+    private var lastLookupAt: GeoPoint? = null
+    private var lastLookupMs = 0L
+    private var lookupJob: Job? = null
+    private var pendingLimit: Int? = null
+    private var overCount = 0
+    private var lastOverAlertMs = 0L
+    private val warnedCameras = mutableSetOf<Int>()
+    private val autoDownloadTried = mutableSetOf<String>()
+    private val chime by lazy {
+        try {
+            android.media.ToneGenerator(android.media.AudioManager.STREAM_MUSIC, 85)
+        } catch (_: Exception) {
+            null
+        }
+    }
     private var searchJob: Job? = null
     private var routeJob: Job? = null
     private var offRouteCount = 0
@@ -161,7 +184,7 @@ class InAppNavigationController(app: Application) : AndroidViewModel(app) {
                 if (!startGuidingWhenDone) _state.value = NavState.Preparing(place, null)
                 val route = router.route(from, place.point)
                 if (startGuidingWhenDone) {
-                    beginGuiding(place, route, spoken = "Route updated")
+                    beginGuiding(place, route, spoken = NavText.routeUpdated(spokenLang()))
                 } else {
                     _state.value = NavState.Preview(place, route)
                 }
@@ -182,12 +205,13 @@ class InAppNavigationController(app: Application) : AndroidViewModel(app) {
 
     fun startGuidance() {
         val s = _state.value as? NavState.Preview ?: return
-        beginGuiding(s.place, s.route, spoken = "Starting route to ${s.place.name}")
+        beginGuiding(s.place, s.route, spoken = NavText.starting(s.place.name, spokenLang()))
     }
 
     private fun beginGuiding(place: NavPlace, route: Route, spoken: String) {
         offRouteCount = 0
         announced.clear()
+        warnedCameras.clear()
         val progress = lastPosition?.let { computeProgress(route, it) }
         _state.value = NavState.Guiding(place, route, progress)
         say(spoken)
@@ -216,20 +240,34 @@ class InAppNavigationController(app: Application) : AndroidViewModel(app) {
         val position = GeoPoint(lat, lon)
         lastPosition = position
         lastSpeedKmh = data.currentSpeedKmh
-        val s = _state.value as? NavState.Guiding ?: return
+        maybeAutoDownload(position)
+        val s = _state.value as? NavState.Guiding
+        if (s == null) {
+            if (data.gpsStatus == GpsStatus.LIVE) lookUpSpeedLimit(position)
+            checkOverSpeed()
+            return
+        }
         if (s.rerouting || data.gpsStatus != GpsStatus.LIVE) return
 
         val progress = computeProgress(s.route, position, s.progress?.segmentIndex ?: -1)
+        _speedLimit.value = progress.speedLimitKmh
+        checkOverSpeed()
+        progress.nextCameraMeters?.let { d ->
+            val cameraIndex = s.route.cameras.firstOrNull { s.route.cumulativeMeters[it] > progress.traveledMeters }
+            if (cameraIndex != null && d <= cameraWarningMeters(lastSpeedKmh) && warnedCameras.add(cameraIndex)) {
+                alert(NavText.camera(progress.speedLimitKmh, spokenLang()))
+            }
+        }
         if (progress.arrived) {
             _state.value = NavState.Arrived(s.place)
-            say("You have arrived at ${s.place.name}")
+            say(NavText.arrived(s.place.name, spokenLang()))
             return
         }
         offRouteCount = if (progress.offRouteMeters > OFF_ROUTE_METERS) offRouteCount + 1 else 0
         if (offRouteCount >= OFF_ROUTE_FIXES_BEFORE_REROUTE) {
             offRouteCount = 0
             _state.value = s.copy(progress = progress, rerouting = true)
-            say("Recalculating")
+            say(NavText.recalculating(spokenLang()))
             reroute(s.place)
             return
         }
@@ -243,7 +281,7 @@ class InAppNavigationController(app: Application) : AndroidViewModel(app) {
         routeJob = viewModelScope.launch {
             try {
                 val route = router.route(from, place.point)
-                beginGuiding(place, route, spoken = "Route updated")
+                beginGuiding(place, route, spoken = NavText.routeUpdated(spokenLang()))
             } catch (c: CancellationException) {
                 throw c
             } catch (_: Exception) {
@@ -259,18 +297,126 @@ class InAppNavigationController(app: Application) : AndroidViewModel(app) {
         val stage = promptStageFor(progress.distanceToNextManeuver, lastSpeedKmh) ?: return
         if (!announced.add(next.pointIndex to stage)) return
         if (stage == PromptStage.NEAR) announced.add(next.pointIndex to PromptStage.FAR)
-        val text = maneuverText(next)
-        val then = progress.thenManeuver?.let { ", then ${maneuverText(it).replaceFirstChar(Char::lowercase)}" } ?: ""
+        val lang = spokenLang()
         say(
             when (stage) {
-                PromptStage.FAR -> "In ${spokenDistance(progress.distanceToNextManeuver)}, ${text.replaceFirstChar(Char::lowercase)}"
-                PromptStage.NEAR -> "$text$then"
+                PromptStage.FAR -> NavText.farPrompt(progress.distanceToNextManeuver, next, lang)
+                PromptStage.NEAR -> NavText.nearPrompt(next, progress.thenManeuver, lang)
             },
         )
     }
 
     private fun say(text: String) {
         if (_voiceOn.value) voice.speak(text)
+    }
+
+    // ---- language ------------------------------------------------------------
+
+    private val _language = MutableStateFlow(
+        NavLanguage.entries.firstOrNull { it.name == prefs.getString(KEY_LANGUAGE, null) } ?: NavLanguage.ENGLISH,
+    )
+    /** Language of on-screen directions and (when the voice is installed) spoken ones. */
+    val language: StateFlow<NavLanguage> = _language.asStateFlow()
+
+    fun setLanguage(lang: NavLanguage) {
+        _language.value = lang
+        prefs.edit().putString(KEY_LANGUAGE, lang.name).apply()
+        voice.setLanguage(lang)
+    }
+
+    /** Hindi is spoken only when the unit has a Hindi voice; otherwise English. */
+    private fun spokenLang(): NavLanguage =
+        if (_language.value == NavLanguage.HINDI && voice.hindiAvailable) NavLanguage.HINDI else NavLanguage.ENGLISH
+
+    val hindiVoiceAvailable: Boolean get() = voice.hindiAvailable
+
+    init {
+        voice.setLanguage(_language.value)
+    }
+
+    // ---- speed limit & cameras ---------------------------------------------
+
+    /**
+     * Free driving: look up the road under the car every few seconds (≈20 ms
+     * on the road data already on the unit). A new limit is shown only once
+     * two lookups agree, so passing a side road never flickers the sign.
+     */
+    private fun lookUpSpeedLimit(position: GeoPoint) {
+        val now = System.currentTimeMillis()
+        val moved = lastLookupAt?.let { distanceMeters(it, position) } ?: Double.MAX_VALUE
+        if (lookupJob?.isActive == true || (now - lastLookupMs < LOOKUP_EVERY_MS && moved < LOOKUP_EVERY_M)) return
+        if (!data.hasTile(routingTileName(position.latitude, position.longitude))) {
+            _speedLimit.value = null
+            return
+        }
+        lastLookupAt = position
+        lastLookupMs = now
+        lookupJob = viewModelScope.launch {
+            val limit = router.roadTagsAt(position)?.let(::maxspeedFromTags)?.takeIf { it > 0 }
+            if (limit == _speedLimit.value) {
+                pendingLimit = null
+            } else if (limit == pendingLimit || _speedLimit.value == null) {
+                _speedLimit.value = limit
+                pendingLimit = null
+            } else {
+                pendingLimit = limit
+            }
+        }
+    }
+
+    /** Over the limit for 3 fixes in a row → chime + "Speed limit 50", at most once a minute. */
+    private fun checkOverSpeed() {
+        if (!isOverLimit(lastSpeedKmh, _speedLimit.value)) {
+            overCount = 0
+            return
+        }
+        overCount++
+        val now = System.currentTimeMillis()
+        if (overCount >= 3 && now - lastOverAlertMs > OVER_ALERT_EVERY_MS) {
+            lastOverAlertMs = now
+            _speedLimit.value?.let { alert(NavText.speedLimit(it, spokenLang())) }
+        }
+    }
+
+    private fun alert(spoken: String) {
+        if (!_alertsOn.value) return
+        try {
+            chime?.startTone(android.media.ToneGenerator.TONE_PROP_BEEP2, 300)
+        } catch (_: Exception) {
+        }
+        if (_voiceOn.value) voice.speak(spoken)
+    }
+
+    fun setAlertsOn(on: Boolean) {
+        _alertsOn.value = on
+        prefs.edit().putBoolean(KEY_ALERTS, on).apply()
+    }
+
+    /**
+     * Downloads this area's road data in the background the first time the
+     * car is there — only on an unmetered connection (car Wi-Fi), once per
+     * area — so the speed-limit sign and navigation are ready.
+     */
+    private fun maybeAutoDownload(position: GeoPoint) {
+        val tile = routingTileName(position.latitude, position.longitude)
+        if (data.hasTile(tile) || !autoDownloadTried.add(tile)) return
+        val cm = getApplication<Application>().getSystemService(Context.CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager
+        val unmetered = try {
+            cm?.activeNetwork != null && cm.isActiveNetworkMetered.not()
+        } catch (_: Exception) {
+            false
+        }
+        if (!unmetered) {
+            autoDownloadTried.remove(tile) // try again when on Wi-Fi
+            return
+        }
+        viewModelScope.launch {
+            try {
+                data.download(listOf(tile)) { }
+            } catch (_: Exception) {
+                autoDownloadTried.remove(tile)
+            }
+        }
     }
 
     // ---- recent places (on this unit only) ---------------------------------
@@ -307,6 +453,7 @@ class InAppNavigationController(app: Application) : AndroidViewModel(app) {
     }
 
     override fun onCleared() {
+        runCatching { chime?.release() }
         voice.shutdown()
         super.onCleared()
     }
@@ -316,5 +463,10 @@ class InAppNavigationController(app: Application) : AndroidViewModel(app) {
         const val MAX_RECENTS = 8
         const val KEY_RECENTS = "recent_places"
         const val KEY_VOICE = "voice_on"
+        const val KEY_ALERTS = "alerts_on"
+        const val KEY_LANGUAGE = "language"
+        const val LOOKUP_EVERY_MS = 6_000L
+        const val LOOKUP_EVERY_M = 80.0
+        const val OVER_ALERT_EVERY_MS = 60_000L
     }
 }

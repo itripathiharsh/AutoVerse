@@ -11,8 +11,8 @@ class AppSettingsTest {
     fun `defaults are cobalt, system appearance, reduced motion, constrained profile`() {
         val defaults = AppSettings()
         assertEquals(AutoVerseThemeId.COBALT, defaults.themeId)
-        assertEquals(AppearanceMode.SYSTEM, defaults.appearanceMode)
-        assertTrue(defaults.reducedMotion)
+        assertEquals(AppearanceMode.NIGHT, defaults.appearanceMode)
+        assertFalse(defaults.reducedMotion)
         assertEquals(PerformanceProfile.CONSTRAINED, defaults.profile)
         assertTrue(defaults.preferSmoothness)
         assertTrue(defaults.clock24h)

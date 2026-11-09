@@ -60,6 +60,10 @@ import com.autoverse.launcher.feature.probe.MapDisplayProbeScreen
 import com.autoverse.launcher.feature.probe.MapEmbedProbeScreen
 import com.autoverse.launcher.core.permissions.CarSetupStatus
 import com.autoverse.launcher.core.design.components.LocalOpenMusic
+import com.autoverse.launcher.core.design.components.LocalOpenCar
+import com.autoverse.launcher.core.car.CarController
+import com.autoverse.launcher.feature.car.CarScreen
+import androidx.compose.ui.graphics.graphicsLayer
 import com.autoverse.launcher.core.design.components.LocalUse24HourClock
 import com.autoverse.launcher.core.music.MusicController
 import com.autoverse.launcher.feature.music.MusicScreen
@@ -73,13 +77,14 @@ import com.autoverse.launcher.feature.speedometer.SpeedometerScreen
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 
-enum class Screen { HOME, NAVIGATION, MUSIC, APP_DRAWER, SPEEDOMETER, OBD, SETTINGS, DIAGNOSTICS, MAP_PROBE, MAP_DISPLAY_PROBE }
+enum class Screen { HOME, NAVIGATION, MUSIC, CAR, APP_DRAWER, SPEEDOMETER, OBD, SETTINGS, DIAGNOSTICS, MAP_PROBE, MAP_DISPLAY_PROBE }
 
 @Composable
 fun AppRoot(
     viewModel: MainViewModel = viewModel(),
     navigation: InAppNavigationController = viewModel(),
     music: MusicController = viewModel(),
+    car: CarController = viewModel(),
 ) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val performanceSpec by viewModel.performanceSpec.collectAsStateWithLifecycle()
@@ -109,8 +114,13 @@ fun AppRoot(
     val callState by viewModel.callState.collectAsStateWithLifecycle()
     val mapsStatus by viewModel.mapsStatus.collectAsStateWithLifecycle()
 
+    val speedLimit by navigation.speedLimit.collectAsStateWithLifecycle()
+    val navLanguage by navigation.language.collectAsStateWithLifecycle()
     // Every GPS fix also drives in-app navigation (progress, voice, rerouting).
-    LaunchedEffect(navigation, speedometerData) { navigation.onLocation(speedometerData) }
+    LaunchedEffect(navigation, speedometerData) {
+        navigation.onLocation(speedometerData)
+        car.onLocation(speedometerData) // automatic trip log
+    }
 
     var screen by rememberSaveable { mutableStateOf(Screen.HOME) }
     var editingHome by rememberSaveable { mutableStateOf(false) }
@@ -310,7 +320,9 @@ fun AppRoot(
             LocalPerformanceSpec provides performanceSpec,
             LocalInAppNavigation provides navigation,
             LocalOpenMusic provides { screen = Screen.MUSIC },
+            LocalOpenCar provides { screen = Screen.CAR },
             LocalUse24HourClock provides settings.clock24h,
+            com.autoverse.launcher.core.routing.LocalNavLanguage provides navLanguage,
             LocalDensity provides Density(
                 density = baseDensity.density,
                 fontScale = baseDensity.fontScale * settings.textScale,
@@ -338,7 +350,7 @@ fun AppRoot(
                     onNotNow = { setupGateDismissed = true },
                     modifier = Modifier.fillMaxSize(),
                 )
-            } else when (screen) {
+            } else ScreenFadeIn(key = screen, enabled = !settings.reducedMotion) { when (screen) {
                     Screen.HOME -> {
                         val dashboard = rememberDashboardData(
                             viewModel = viewModel,
@@ -358,6 +370,7 @@ fun AppRoot(
                                 screen = Screen.APP_DRAWER
                             },
                             onOpenMusic = { screen = Screen.MUSIC },
+                            speedLimitKmh = speedLimit,
                             homeLayout = settings.homeLayout,
                             onHomeLayoutChange = viewModel::setHomeLayout,
                             editingHome = editingHome,
@@ -683,9 +696,53 @@ fun AppRoot(
                             modifier = Modifier.fillMaxSize(),
                         )
                     }
-            }
+
+                    Screen.CAR -> {
+                        CarScreen(
+                            car = car,
+                            speedometerData = speedometerData,
+                            onOpenSpeedometer = { screen = Screen.SPEEDOMETER },
+                            onOpenObd = { screen = Screen.OBD },
+                            onOpenDiagnostics = { screen = Screen.DIAGNOSTICS },
+                            onOpenHome = { screen = Screen.HOME },
+                            onOpenAppDrawer = {
+                                drawerQuery = ""
+                                screen = Screen.APP_DRAWER
+                            },
+                            onOpenNavigation = { screen = Screen.NAVIGATION },
+                            onOpenSettings = {
+                                settingsCategory = null
+                                screen = Screen.SETTINGS
+                            },
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+            } }
         }
     }
+}
+
+/**
+ * Fades each newly opened screen in (~220 ms). Only the new screen is
+ * composed — never two at once — so the single live map is never claimed by
+ * two screens, and the cost is one alpha layer for a fraction of a second.
+ */
+@Composable
+private fun ScreenFadeIn(key: Any, enabled: Boolean, content: @Composable () -> Unit) {
+    val alpha = remember { androidx.compose.animation.core.Animatable(1f) }
+    LaunchedEffect(key, enabled) {
+        if (enabled) {
+            alpha.snapTo(0.35f)
+            alpha.animateTo(1f, androidx.compose.animation.core.tween(220))
+        } else {
+            alpha.snapTo(1f)
+        }
+    }
+    androidx.compose.foundation.layout.Box(
+        Modifier
+            .fillMaxSize()
+            .graphicsLayer { this.alpha = alpha.value },
+    ) { content() }
 }
 
 /**

@@ -57,6 +57,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -922,6 +923,35 @@ private fun AppearanceSettings(
             checked = settings.fullScreen,
             onCheckedChange = callbacks.setFullScreen,
         )
+        com.autoverse.launcher.core.routing.LocalInAppNavigation.current?.let { nav ->
+            val alertsOn by nav.alertsOn.collectAsState()
+            Spacer(Modifier.height(AutoVerseSpacing.xs))
+            SwitchRow(
+                title = "Speed-limit & camera warnings",
+                subtitle = "A chime and a short voice line when you're over the limit or near a speed camera.",
+                checked = alertsOn,
+                onCheckedChange = nav::setAlertsOn,
+            )
+            val navLang by nav.language.collectAsState()
+            Spacer(Modifier.height(AutoVerseSpacing.xs))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Directions language", style = MaterialTheme.typography.titleSmall, color = colors.textPrimary)
+                    Text(
+                        if (navLang == com.autoverse.launcher.core.routing.NavLanguage.HINDI && !nav.hindiVoiceAvailable) {
+                            "Hindi directions on screen. For Hindi voice, install Hindi in Android's text-to-speech settings."
+                        } else {
+                            "Turn-by-turn directions and voice prompts."
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.textSecondary,
+                    )
+                }
+                com.autoverse.launcher.core.routing.NavLanguage.entries.forEach { l ->
+                    TextAction(text = l.label, onClick = { nav.setLanguage(l) }, enabled = navLang != l)
+                }
+            }
+        }
         Spacer(Modifier.height(AutoVerseSpacing.xs))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(

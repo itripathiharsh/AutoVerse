@@ -63,6 +63,8 @@ import com.autoverse.launcher.core.routing.InAppNavigationController
 import com.autoverse.launcher.core.routing.ManeuverType
 import com.autoverse.launcher.core.routing.NavPlace
 import com.autoverse.launcher.core.routing.NavState
+import com.autoverse.launcher.core.routing.NavText
+import com.autoverse.launcher.core.routing.LocalNavLanguage
 import com.autoverse.launcher.core.routing.formatDistance
 import com.autoverse.launcher.core.routing.formatDuration
 import com.autoverse.launcher.core.routing.maneuverText
@@ -121,6 +123,7 @@ fun BoxScope.InAppNavigationOverlay(
     val state by controller.state.collectAsStateWithLifecycle()
     val search by controller.searchState.collectAsStateWithLifecycle()
     val voiceOn by controller.voiceOn.collectAsStateWithLifecycle()
+    val lang = LocalNavLanguage.current
     val focus = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
 
@@ -159,11 +162,11 @@ fun BoxScope.InAppNavigationOverlay(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                     Spacer(Modifier.width(AutoVerseSpacing.xs))
-                    Text("Finding the best route…", style = MaterialTheme.typography.bodySmall, color = LocalAutoVerseColors.current.textSecondary)
+                    Text(NavText.findingRoute(lang), style = MaterialTheme.typography.bodySmall, color = LocalAutoVerseColors.current.textSecondary)
                 }
             }
             Spacer(Modifier.size(AutoVerseSpacing.xs))
-            TextAction(text = "Cancel", onClick = controller::stop)
+            TextAction(text = NavText.cancel(lang), onClick = controller::stop)
         }
 
         is NavState.Preview -> OverlayCard(
@@ -178,7 +181,7 @@ fun BoxScope.InAppNavigationOverlay(
             }
             Spacer(Modifier.size(AutoVerseSpacing.xxs))
             Text(
-                "${formatDuration(s.route.totalSeconds)} · ${formatDistance(s.route.totalMeters)} · arrive ${arrivalClock(s.route.totalSeconds)}",
+                "${formatDuration(s.route.totalSeconds)} · ${formatDistance(s.route.totalMeters)} · ${NavText.arrive(lang)} ${arrivalClock(s.route.totalSeconds)}",
                 style = MaterialTheme.typography.titleSmall,
                 color = colors.success,
             )
@@ -187,13 +190,33 @@ fun BoxScope.InAppNavigationOverlay(
                 horizontalArrangement = Arrangement.spacedBy(AutoVerseSpacing.xs),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                PrimaryAction(text = "Start", onClick = controller::startGuidance)
-                TextAction(text = "Cancel", onClick = controller::stop)
+                PrimaryAction(text = NavText.start(lang), onClick = controller::startGuidance)
+                TextAction(text = NavText.cancel(lang), onClick = controller::stop)
                 if (!compact) TextAction(text = "Google Maps", onClick = { onOpenInGoogleMaps(s.place) })
             }
         }
 
         is NavState.Guiding -> {
+            Column(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(AutoVerseSpacing.sm),
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(AutoVerseSpacing.xs),
+            ) {
+                s.progress?.speedLimitKmh?.let { com.autoverse.launcher.feature.home.SpeedLimitSign(it, size = if (compact) 48 else 60) }
+                s.progress?.nextCameraMeters?.takeIf { it < 1_500 }?.let { d ->
+                    Text(
+                        "📷 ${formatDistance(d)}",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = androidx.compose.ui.graphics.Color.White,
+                        modifier = Modifier
+                            .clip(AutoVerseShapes.pill)
+                            .background(androidx.compose.ui.graphics.Color(0xFFD32F2F))
+                            .padding(horizontal = AutoVerseSpacing.sm, vertical = 4.dp),
+                    )
+                }
+            }
             GuidanceBanner(
                 state = s,
                 modifier = Modifier
@@ -215,10 +238,10 @@ fun BoxScope.InAppNavigationOverlay(
         is NavState.Arrived -> OverlayCard(Modifier.align(Alignment.Center)) {
             val colors = LocalAutoVerseColors.current
             Icon(Icons.Outlined.Place, contentDescription = null, tint = colors.success, modifier = Modifier.size(32.dp))
-            Text("You have arrived", style = MaterialTheme.typography.titleMedium, color = colors.textPrimary)
+            Text(NavText.arrivedTitle(lang), style = MaterialTheme.typography.titleMedium, color = colors.textPrimary)
             Text(s.place.name, style = MaterialTheme.typography.bodySmall, color = colors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.size(AutoVerseSpacing.xs))
-            PrimaryAction(text = "Done", onClick = controller::stop)
+            PrimaryAction(text = NavText.done(lang), onClick = controller::stop)
         }
 
         is NavState.Failed -> OverlayCard(Modifier.align(Alignment.Center)) {
@@ -227,8 +250,8 @@ fun BoxScope.InAppNavigationOverlay(
             Text(s.message, style = MaterialTheme.typography.bodySmall, color = colors.warning)
             Spacer(Modifier.size(AutoVerseSpacing.xs))
             Row(horizontalArrangement = Arrangement.spacedBy(AutoVerseSpacing.xs), verticalAlignment = Alignment.CenterVertically) {
-                PrimaryAction(text = "Retry", onClick = controller::retry)
-                TextAction(text = "Cancel", onClick = controller::stop)
+                PrimaryAction(text = NavText.retry(lang), onClick = controller::retry)
+                TextAction(text = NavText.cancel(lang), onClick = controller::stop)
                 if (!compact) TextAction(text = "Google Maps", onClick = { onOpenInGoogleMaps(s.place) })
             }
         }
@@ -259,6 +282,7 @@ fun InAppNavigationSearchRow(
             value = search.query,
             onValueChange = controller::setQuery,
             isError = false,
+            placeholder = NavText.whereTo(LocalNavLanguage.current),
             modifier = Modifier.weight(1f),
             trailingIcon = if (search.query.isNotEmpty()) {
                 {
@@ -369,6 +393,7 @@ private fun SearchResults(
 
 @Composable
 private fun GuidanceBanner(state: NavState.Guiding, modifier: Modifier, compact: Boolean) {
+    val lang = LocalNavLanguage.current
     val colors = LocalAutoVerseColors.current
     val progress = state.progress
     val next = progress?.nextManeuver
@@ -389,7 +414,7 @@ private fun GuidanceBanner(state: NavState.Guiding, modifier: Modifier, compact:
         Spacer(Modifier.width(AutoVerseSpacing.sm))
         Column {
             when {
-                state.rerouting -> Text("Recalculating…", color = colors.onAccent, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                state.rerouting -> Text(NavText.recalculatingTitle(lang), color = colors.onAccent, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 progress == null || next == null -> Text("Head to the route", color = colors.onAccent, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 else -> {
                     Text(
@@ -398,9 +423,9 @@ private fun GuidanceBanner(state: NavState.Guiding, modifier: Modifier, compact:
                         fontSize = if (compact) 24.sp else 30.sp,
                         fontWeight = FontWeight.Bold,
                     )
-                    Text(maneuverText(next), color = colors.onAccent, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(NavText.maneuver(next, lang), color = colors.onAccent, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     progress.thenManeuver?.let {
-                        Text("Then ${maneuverText(it).replaceFirstChar(Char::lowercase)}", color = colors.onAccent.copy(alpha = 0.85f), style = MaterialTheme.typography.labelMedium, maxLines = 1)
+                        Text(NavText.then(it, lang), color = colors.onAccent.copy(alpha = 0.85f), style = MaterialTheme.typography.labelMedium, maxLines = 1)
                     }
                 }
             }
@@ -447,7 +472,7 @@ private fun GuidanceFooter(
             onClick = onToggleVoice,
         )
         Spacer(Modifier.width(AutoVerseSpacing.xs))
-        PrimaryAction(text = "End", onClick = onEnd)
+        PrimaryAction(text = NavText.end(LocalNavLanguage.current), onClick = onEnd)
     }
 }
 

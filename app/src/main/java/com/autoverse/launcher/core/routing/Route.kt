@@ -43,6 +43,10 @@ data class Route(
     val cumulativeMeters: DoubleArray,
     val cumulativeSeconds: DoubleArray,
     val maneuvers: List<Maneuver>,
+    /** Speed limit (km/h) of the road arriving at each point; 0 = not mapped. */
+    val speedLimits: IntArray = IntArray(points.size),
+    /** Point indices of mapped speed cameras along the route. */
+    val cameras: List<Int> = emptyList(),
 ) {
     val totalMeters: Double get() = cumulativeMeters.lastOrNull() ?: 0.0
     val totalSeconds: Double get() = cumulativeSeconds.lastOrNull() ?: 0.0
@@ -56,7 +60,13 @@ data class Route(
          * start, as BRouter reports them) and maneuvers. Missing or broken
          * times fall back to [FALLBACK_SPEED_MPS] so ETA is never blank.
          */
-        fun of(points: List<GeoPoint>, times: List<Double>?, maneuvers: List<Maneuver>): Route {
+        fun of(
+            points: List<GeoPoint>,
+            times: List<Double>?,
+            maneuvers: List<Maneuver>,
+            speedLimits: IntArray? = null,
+            cameras: List<Int> = emptyList(),
+        ): Route {
             val meters = DoubleArray(points.size)
             for (i in 1 until points.size) {
                 meters[i] = meters[i - 1] + distanceMeters(points[i - 1], points[i])
@@ -74,7 +84,8 @@ data class Route(
                         list + Maneuver(points.lastIndex, ManeuverType.ARRIVE)
                     } else list
                 }
-            return Route(points, meters, seconds, withArrival)
+            val limits = speedLimits?.takeIf { it.size == points.size } ?: IntArray(points.size)
+            return Route(points, meters, seconds, withArrival, limits, cameras.filter { it in points.indices }.distinct().sorted())
         }
 
         /** ~40 km/h, a fair Indian city average when the router gives no times. */

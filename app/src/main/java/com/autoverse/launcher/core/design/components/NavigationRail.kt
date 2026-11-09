@@ -19,6 +19,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.DirectionsCar
 import androidx.compose.material.icons.outlined.LibraryMusic
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.material.icons.outlined.Map
@@ -48,7 +49,13 @@ import com.autoverse.launcher.core.design.tokens.AutoVerseShapes
 import com.autoverse.launcher.core.design.tokens.AutoVerseSpacing
 
 /** Top-level destinations the rail marks as selected. */
-enum class RailDestination { HOME, APPS, MAPS, NAVIGATION, MUSIC, SPEEDOMETER, OBD, DIAGNOSTICS, SETTINGS }
+enum class RailDestination { HOME, APPS, MAPS, NAVIGATION, MUSIC, CAR, SPEEDOMETER, OBD, DIAGNOSTICS, SETTINGS }
+
+/**
+ * Opens the Car page (speed, trips, OBD, reminders, speaker test, head-unit
+ * check) from any rail; provided at the app root like [LocalOpenMusic].
+ */
+val LocalOpenCar = staticCompositionLocalOf<(() -> Unit)?> { null }
 
 /**
  * Opens the Music page from any screen's rail. Provided once at the app
@@ -70,14 +77,19 @@ private data class RailEntry(
     val label: String,
 )
 
+/**
+ * Driver-facing destinations only. Speed, OBD and the head-unit check live
+ * on the Car page; Diagnostics is reached from Settings — not the main menu.
+ * (Previews without a Car page keep the old Speed/OBD entries.)
+ */
 private val RAIL_ENTRIES = listOf(
     RailEntry(RailDestination.HOME, Icons.Outlined.Home, "Home"),
     RailEntry(RailDestination.APPS, Icons.Outlined.Apps, "Apps"),
     RailEntry(RailDestination.MAPS, Icons.Outlined.Map, "Maps"),
     RailEntry(RailDestination.MUSIC, Icons.Outlined.LibraryMusic, "Music"),
+    RailEntry(RailDestination.CAR, Icons.Outlined.DirectionsCar, "Car"),
     RailEntry(RailDestination.SPEEDOMETER, Icons.Outlined.Speed, "Speed"),
     RailEntry(RailDestination.OBD, Icons.Outlined.Sensors, "OBD"),
-    RailEntry(RailDestination.DIAGNOSTICS, Icons.Outlined.Memory, "Diagnostics"),
     RailEntry(RailDestination.SETTINGS, Icons.Outlined.Settings, "Settings"),
 )
 
@@ -106,7 +118,9 @@ fun AppNavigationRail(
         contentPadding = PaddingValues(vertical = AutoVerseSpacing.sm),
     ) {
         BoxWithConstraints(modifier = Modifier.fillMaxHeight()) {
-            val labeled = maxHeight >= LABELED_RAIL_MIN_HEIGHT
+            // ~66dp per labeled item plus the logo; drop labels only when they can't all fit.
+            val itemCount = if (LocalOpenCar.current != null) 6 else RAIL_ENTRIES.size
+            val labeled = maxHeight >= (48 + itemCount * 66).dp || maxHeight >= LABELED_RAIL_MIN_HEIGHT
             Column(
                 // Scrolls as a last resort (very short screens, large text) so no
                 // destination is ever cut off out of reach.
@@ -119,13 +133,18 @@ fun AppNavigationRail(
                 BrandMark()
                 Spacer(Modifier.height(AutoVerseSpacing.xxs))
                 val openMusic = LocalOpenMusic.current
+                val openCar = LocalOpenCar.current
                 RAIL_ENTRIES.forEach { entry ->
                     if (entry.destination == RailDestination.MUSIC && openMusic == null) return@forEach
+                    if (entry.destination == RailDestination.CAR && openCar == null) return@forEach
+                    // With a Car page, Speed and OBD are reached from it, not the menu.
+                    if (openCar != null && (entry.destination == RailDestination.SPEEDOMETER || entry.destination == RailDestination.OBD)) return@forEach
                     val onClick = when (entry.destination) {
                         RailDestination.HOME -> onOpenHome
                         RailDestination.APPS -> onOpenAppDrawer
                         RailDestination.MAPS, RailDestination.NAVIGATION -> onOpenNavigation
                         RailDestination.MUSIC -> openMusic ?: {}
+                        RailDestination.CAR -> openCar ?: {}
                         RailDestination.SPEEDOMETER -> onOpenSpeedometer
                         RailDestination.OBD -> onOpenObd
                         RailDestination.DIAGNOSTICS -> onOpenDiagnostics
@@ -136,7 +155,9 @@ fun AppNavigationRail(
                         label = entry.label,
                         selected = selected == entry.destination ||
                             (entry.destination == RailDestination.MAPS &&
-                                selected == RailDestination.NAVIGATION),
+                                selected == RailDestination.NAVIGATION) ||
+                            (entry.destination == RailDestination.CAR && openCar != null &&
+                                selected in setOf(RailDestination.SPEEDOMETER, RailDestination.OBD, RailDestination.DIAGNOSTICS)),
                         labeled = labeled,
                         onClick = onClick,
                     )

@@ -120,6 +120,39 @@ class RouteTest {
     }
 
     @Test
+    fun `speed limit is read from way tags`() {
+        assertEquals(50, maxspeedFromTags("highway=primary maxspeed=50 surface=asphalt"))
+        assertEquals(0, maxspeedFromTags("highway=primary maxspeed=none"))
+        assertEquals(0, maxspeedFromTags("highway=residential"))
+        assertEquals(80, maxspeedFromTags("maxspeed=80"))
+    }
+
+    @Test
+    fun `over-limit ignores GPS jitter at the limit`() {
+        assertFalse(isOverLimit(52, 50))
+        assertTrue(isOverLimit(55, 50))
+        assertFalse(isOverLimit(90, null))
+    }
+
+    @Test
+    fun `route messages give per-point limits and cameras`() {
+        val json = """
+            {"features":[{"properties":{"messages":[
+              ["Longitude","Latitude","Elevation","Distance","CostPerKm","ElevCost","TurnCost","NodeCost","InitialCost","WayTags","NodeTags","Time","Energy"],
+              ["77210230","28600000","0","1000","1000","0","0","0","0","highway=primary maxspeed=60","highway=speed_camera","90","0"],
+              ["77210230","28604500","0","500","1000","0","0","0","0","highway=residential maxspeed=30","","140","0"]
+             ]},
+             "geometry":{"coordinates":[[77.2,28.6],[77.21023,28.6],[77.21023,28.6045]]}}]}
+        """.trimIndent()
+        val r = parseBRouterJson(json)
+        assertEquals(listOf(60, 60, 30), r.speedLimits.toList())
+        assertEquals(listOf(1), r.cameras)
+        val p = computeProgress(r, GeoPoint(28.60003, 77.20512))
+        assertEquals(60, p.speedLimitKmh)
+        assertEquals(500.0, p.nextCameraMeters!!, 15.0)
+    }
+
+    @Test
     fun `instructions are plain English`() {
         assertEquals("Turn left", maneuverText(Maneuver(0, ManeuverType.TURN_LEFT)))
         assertEquals("At the roundabout, take exit 2", maneuverText(Maneuver(0, ManeuverType.ROUNDABOUT, 2)))

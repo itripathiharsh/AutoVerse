@@ -77,8 +77,14 @@ class LiveMapHost(
 
     init {
         MapLibre.getInstance(appContext)
+        // Storage-aware: up to 200 MB, but never more than 5% of the unit's free space.
+        val freeBytes = try {
+            android.os.StatFs(appContext.filesDir.path).availableBytes
+        } catch (_: Exception) {
+            MapStyle.AMBIENT_CACHE_BYTES * 20
+        }
         OfflineManager.getInstance(appContext).setMaximumAmbientCacheSize(
-            MapStyle.AMBIENT_CACHE_BYTES,
+            com.autoverse.launcher.core.car.mapCacheBytesFor(freeBytes),
             object : OfflineManager.FileSourceCallback {
                 override fun onSuccess() = Unit
                 override fun onError(message: String) = Unit

@@ -74,15 +74,11 @@ fun MapsLaunchPanel(
     // previews and tests fall through to the hand-off layout below.
     val navigation = LocalInAppNavigation.current
     if (navigation != null) {
+        // No header: the map itself is the panel (more map, less chrome).
         CockpitCard(
             modifier = modifier,
-            contentPadding = PaddingValues(AutoVerseSpacing.md),
+            contentPadding = PaddingValues(AutoVerseSpacing.sm),
         ) {
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                SectionLabel(icon = Icons.Outlined.Map, label = "MAP", modifier = Modifier.weight(1f))
-                StatusChip(label = "Navigation in AutoVerse", tone = StatusTone.SUCCESS, leadingDot = true)
-            }
-            Spacer(Modifier.size(AutoVerseSpacing.xs))
             InAppNavigationMapSync(navigation)
             Box(
                 modifier = Modifier

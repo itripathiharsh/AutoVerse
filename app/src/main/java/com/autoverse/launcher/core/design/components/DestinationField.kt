@@ -19,11 +19,12 @@ fun DestinationField(
     isError: Boolean,
     modifier: Modifier = Modifier,
     trailingIcon: (@Composable () -> Unit)? = null,
+    placeholder: String = "Where to?",
 ) {
     AutoVerseTextField(
         value = value,
         onValueChange = onValueChange,
-        placeholder = "Where to?",
+        placeholder = placeholder,
         modifier = modifier,
         isError = isError,
         leadingIcon = {

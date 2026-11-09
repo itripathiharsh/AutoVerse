@@ -45,6 +45,27 @@ class OnDeviceRouter(
         }
     }
 
+    /**
+     * The road at [p] (nearest mapped way) as its tag text, e.g.
+     * "highway=primary maxspeed=50 …"; null without road data for the area.
+     * Used for the speed-limit sign while driving without a route.
+     */
+    suspend fun roadTagsAt(p: GeoPoint): String? = withContext(Dispatchers.Default) {
+        try {
+            val rc = RoutingContext().apply {
+                localFunction = profilePath()
+                outputFormat = "json"
+            }
+            val engine = RoutingEngine(null, null, segmentDir, mutableListOf(node(p, "here")), rc, RoutingEngine.BROUTER_ENGINEMODE_GETINFO)
+            engine.quite = true
+            engine.doRun(ROAD_INFO_MS)
+            val json = engine.foundInfo ?: return@withContext null
+            roadTagsFromInfo(json)
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
     private fun node(p: GeoPoint, name: String) = OsmNodeNamed().apply {
         this.name = name
         ilon = ((p.longitude + 180.0) * 1_000_000.0).roundToInt()
@@ -52,8 +73,31 @@ class OnDeviceRouter(
     }
 
     companion object {
+        /**
+         * BRouter's get-info answer is a tiny track whose "messages" table
+         * carries the road's tags (WayTags column); older builds put them in
+         * a "message" property instead. Returns the first road tag line.
+         */
+        fun roadTagsFromInfo(json: String): String? {
+            val features = org.json.JSONObject(json).optJSONArray("features") ?: return null
+            for (f in 0 until features.length()) {
+                val props = features.getJSONObject(f).optJSONObject("properties") ?: continue
+                props.optString("message").takeIf { it.contains("highway=") }?.let { return it }
+                val messages = props.optJSONArray("messages") ?: continue
+                if (messages.length() < 2) continue
+                val header = messages.getJSONArray(0)
+                val wayCol = (0 until header.length()).firstOrNull { header.optString(it) == "WayTags" } ?: continue
+                for (r in 1 until messages.length()) {
+                    val tags = messages.getJSONArray(r).optString(wayCol)
+                    if (tags.contains("highway=")) return tags
+                }
+            }
+            return null
+        }
+
         /** Long cross-state routes on slow units get this long before we give up. */
         const val MAX_ROUTING_MS = 60_000L
+        const val ROAD_INFO_MS = 5_000L
 
         fun friendlyError(raw: String?): String = when {
             raw == null -> "Couldn't calculate a route"

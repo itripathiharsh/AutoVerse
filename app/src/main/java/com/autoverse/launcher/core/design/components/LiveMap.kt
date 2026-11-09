@@ -167,12 +167,12 @@ fun LiveMap(
                 modifier = Modifier.align(Alignment.Center),
             )
         } else {
+            // Only say something when the driver would otherwise be confused.
             val note = when {
-                host == null && engine == MapEngineState.UNAVAILABLE -> "Map unavailable on this device"
+                host == null && engine == MapEngineState.UNAVAILABLE -> "Map unavailable on this unit"
                 host == null -> null
-                speedometerData.gpsStatus == GpsStatus.STALE -> "GPS signal lost — showing last position"
                 speedometerData.latitude == null -> "Finding your location…"
-                speedometerData.gpsStatus != GpsStatus.LIVE -> "Approximate position — waiting for GPS"
+                speedometerData.gpsStatus == GpsStatus.STALE -> "Weak GPS signal"
                 else -> null
             }
             if (note != null) {

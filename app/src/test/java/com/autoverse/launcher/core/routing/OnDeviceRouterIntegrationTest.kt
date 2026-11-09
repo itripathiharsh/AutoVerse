@@ -42,5 +42,16 @@ class OnDeviceRouterIntegrationTest {
         println("CP -> IGI T3: ${formatDistance(longRoute.totalMeters)}, ${formatDuration(longRoute.totalSeconds)}, " +
             "computed in ${System.currentTimeMillis() - s2} ms")
         assertTrue(longRoute.totalMeters in 12_000.0..30_000.0)
+
+        // Speed limits from the road data along the airport route.
+        val limits = longRoute.speedLimits.filter { it > 0 }.groupingBy { it }.eachCount()
+        println("Speed limits on CP -> T3 (km/h -> points): $limits; cameras: ${longRoute.cameras.size}")
+        assertTrue("some speed limits mapped", limits.isNotEmpty())
+
+        // Road under a single point (free driving, no route).
+        val s3 = System.currentTimeMillis()
+        val tags = runBlocking { router.roadTagsAt(GeoPoint(28.5900, 77.1700)) } // Sardar Patel Marg area
+        println("Road at point (${System.currentTimeMillis() - s3} ms): $tags -> limit ${tags?.let(::maxspeedFromTags)}")
+        assertTrue("road found", tags != null && tags.contains("highway="))
     }
 }

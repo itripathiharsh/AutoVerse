@@ -67,6 +67,15 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <!--
+        Car page > Head unit check (1.5.0): optional Usage access, granted by
+        the user in system settings, so the check can list the busiest apps
+        and apps unused for 30+ days. Only foreground time is read.
+    -->
+    <uses-permission
+        android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions" />
+
+    <!--
         Shizuku (map-display probe) declares minSdk 24 conservatively; the
         library itself works on 23 and every Shizuku call in the app is
         guarded, so the merge is overridden rather than dropping an API-23
