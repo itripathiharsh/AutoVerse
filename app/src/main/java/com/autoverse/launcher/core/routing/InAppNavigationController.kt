@@ -36,6 +36,9 @@ sealed interface NavState {
 
     data class Arrived(val place: NavPlace) : NavState
 
+    /** New drive while a trip was unfinished: "Continue to X?". */
+    data class ResumeOffer(val place: NavPlace) : NavState
+
     data class Failed(val place: NavPlace, val message: String) : NavState
 }
 
@@ -44,6 +47,14 @@ data class SearchState(
     val query: String = "",
     val results: List<NavPlace> = emptyList(),
     val loading: Boolean = false,
+    val error: String? = null,
+)
+
+/** "Stops on the way" panel state. */
+data class StopsState(
+    val category: PoiCategory? = null,
+    val loading: Boolean = false,
+    val stops: List<RouteStop> = emptyList(),
     val error: String? = null,
 )
 
@@ -61,6 +72,7 @@ class InAppNavigationController(app: Application) : AndroidViewModel(app) {
     private val data = RoutingDataStore(app)
     private val router = OnDeviceRouter(data)
     private val search = PlaceSearch()
+    private val poi = OverpassPoiSearch()
     private val voice = VoiceGuide(app)
     private val prefs = app.getSharedPreferences("autoverse_nav", Context.MODE_PRIVATE)
 
@@ -181,7 +193,7 @@ class InAppNavigationController(app: Application) : AndroidViewModel(app) {
                     _state.value = NavState.Preparing(place, TileDownloadProgress(missing.first(), 0, missing.size, 0, 0))
                     data.download(missing) { p -> _state.value = NavState.Preparing(place, p) }
                 }
-                if (!startGuidingWhenDone) _state.value = NavState.Preparing(place, null)
+                _state.value = NavState.Preparing(place, null)
                 val route = router.route(from, place.point)
                 if (startGuidingWhenDone) {
                     beginGuiding(place, route, spoken = NavText.routeUpdated(spokenLang()))
@@ -214,14 +226,151 @@ class InAppNavigationController(app: Application) : AndroidViewModel(app) {
         warnedCameras.clear()
         val progress = lastPosition?.let { computeProgress(route, it) }
         _state.value = NavState.Guiding(place, route, progress)
+        rememberActiveTrip(finalDestination ?: place)
         say(spoken)
     }
+
+    // ---- unfinished trip & Home/Work -------------------------------------------
+
+    private fun rememberActiveTrip(place: NavPlace?) {
+        val e = prefs.edit()
+        if (place == null) {
+            e.remove(KEY_ACTIVE).remove(KEY_ACTIVE_MS)
+        } else {
+            e.putString(KEY_ACTIVE, placeJson(place).toString()).putLong(KEY_ACTIVE_MS, System.currentTimeMillis())
+        }
+        e.apply()
+    }
+
+    /** New drive: offer to continue a trip left unfinished in the last few hours. */
+    fun offerResume() {
+        if (_state.value !is NavState.Idle) return
+        val saved = prefs.getString(KEY_ACTIVE, null) ?: return
+        val at = prefs.getLong(KEY_ACTIVE_MS, 0L)
+        if (System.currentTimeMillis() - at > RESUME_WITHIN_MS) {
+            rememberActiveTrip(null)
+            return
+        }
+        val place = try { placeFromJson(JSONObject(saved)) } catch (_: Exception) { null } ?: return
+        _state.value = NavState.ResumeOffer(place)
+    }
+
+    fun acceptResume() {
+        val s = _state.value as? NavState.ResumeOffer ?: return
+        computeRoute(s.place, startGuidingWhenDone = true)
+    }
+
+    fun declineResume() {
+        rememberActiveTrip(null)
+        _state.value = NavState.Idle
+    }
+
+    private val _favorites = MutableStateFlow(
+        mapOf(
+            "home" to prefs.getString(KEY_HOME, null)?.let { runCatching { placeFromJson(JSONObject(it)) }.getOrNull() },
+            "work" to prefs.getString(KEY_WORK, null)?.let { runCatching { placeFromJson(JSONObject(it)) }.getOrNull() },
+        ),
+    )
+    /** "home" / "work" → place, when set. */
+    val favorites: StateFlow<Map<String, NavPlace?>> = _favorites.asStateFlow()
+
+    fun setFavorite(key: String, place: NavPlace) {
+        _favorites.value = _favorites.value + (key to place)
+        prefs.edit().putString(if (key == "home") KEY_HOME else KEY_WORK, placeJson(place).toString()).apply()
+    }
+
+    private fun placeJson(p: NavPlace) = JSONObject().put("n", p.name).put("d", p.detail).put("lat", p.latitude).put("lon", p.longitude)
+    private fun placeFromJson(o: JSONObject) = NavPlace(o.getString("n"), o.optString("d"), o.getDouble("lat"), o.getDouble("lon"))
 
     /** Ends navigation (End button, Cancel on a preview or error, Done after arriving). */
     fun stop() {
         routeJob?.cancel()
         voice.stop()
+        finalDestination = null
+        closeStops()
+        rememberActiveTrip(null)
         _state.value = NavState.Idle
+    }
+
+    // ---- stops on the way (petrol, CNG, EV, toilets, food) -------------------
+
+    /** The destination to resume after a stop added during guidance. */
+    private var finalDestination: NavPlace? = null
+
+    private val _stops = MutableStateFlow(StopsState())
+    val stopsState: StateFlow<StopsState> = _stops.asStateFlow()
+    private var stopsJob: Job? = null
+
+    /**
+     * While guiding: searches a few points ahead on the route and keeps places
+     * close to it. Otherwise: places near the car.
+     */
+    fun findStops(category: PoiCategory) {
+        val here = lastPosition ?: run {
+            _stops.value = StopsState(category, error = "Waiting for your location")
+            return
+        }
+        stopsJob?.cancel()
+        _stops.value = StopsState(category, loading = true)
+        stopsJob = viewModelScope.launch {
+            try {
+                val guiding = _state.value as? NavState.Guiding
+                val traveled = guiding?.progress?.traveledMeters ?: 0.0
+                fun toStops(found: List<NavPlace>): List<RouteStop> = if (guiding != null) {
+                    stopsAlongRoute(guiding.route, traveled, found)
+                } else {
+                    found.map { RouteStop(it, distanceMeters(here, it.point), 0.0) }.sortedBy { it.aheadMeters }
+                }
+                // 1) Fast name search first, so the driver sees answers in a second or two.
+                val quick = try {
+                    if (guiding != null) {
+                        samplePointsAhead(guiding.route, traveled).flatMap { search.searchCategory(category, it, limit = 6) }
+                    } else {
+                        search.searchCategory(category, here, limit = 10)
+                    }
+                } catch (c: CancellationException) {
+                    throw c
+                } catch (_: Exception) {
+                    emptyList()
+                }
+                if (quick.isNotEmpty()) _stops.value = StopsState(category, loading = true, stops = toStops(quick).take(12))
+                // 2) Then every mapped place by tag (Overpass), merged in when it arrives.
+                val tagged = try {
+                    kotlinx.coroutines.withTimeoutOrNull(OVERPASS_WAIT_MS) {
+                        if (guiding != null) poi.alongLine(category, routeLineAhead(guiding.route, traveled)) else poi.near(category, here)
+                    }.orEmpty()
+                } catch (c: CancellationException) {
+                    throw c
+                } catch (_: Exception) {
+                    emptyList()
+                }
+                val merged = mergePlaces(tagged, quick)
+                val stops = toStops(merged)
+                _stops.value = StopsState(category, stops = stops.take(12), error = if (stops.isEmpty()) "None found nearby" else null)
+            } catch (c: CancellationException) {
+                throw c
+            } catch (_: Exception) {
+                _stops.value = StopsState(category, error = "Search needs internet — check the car's Wi-Fi")
+            }
+        }
+    }
+
+    fun closeStops() {
+        stopsJob?.cancel()
+        _stops.value = StopsState()
+    }
+
+    /** Adds [place] as a stop: guide there now, then continue to the destination. */
+    fun addStop(place: NavPlace) {
+        closeStops()
+        val guiding = _state.value as? NavState.Guiding
+        if (guiding == null) {
+            navigateTo(place)
+            return
+        }
+        finalDestination = finalDestination ?: guiding.place
+        _state.value = guiding.copy(place = place, rerouting = true)
+        reroute(place)
     }
 
     fun toggleVoice() {
@@ -259,7 +408,17 @@ class InAppNavigationController(app: Application) : AndroidViewModel(app) {
             }
         }
         if (progress.arrived) {
+            val next = finalDestination
+            if (next != null) {
+                // Reached a stop on the way: carry on to the real destination.
+                finalDestination = null
+                say(NavText.arrived(s.place.name, spokenLang()))
+                _state.value = s.copy(place = next, rerouting = true)
+                reroute(next)
+                return
+            }
             _state.value = NavState.Arrived(s.place)
+            rememberActiveTrip(null)
             say(NavText.arrived(s.place.name, spokenLang()))
             return
         }
@@ -465,6 +624,12 @@ class InAppNavigationController(app: Application) : AndroidViewModel(app) {
         const val KEY_VOICE = "voice_on"
         const val KEY_ALERTS = "alerts_on"
         const val KEY_LANGUAGE = "language"
+        const val KEY_ACTIVE = "active_trip"
+        const val KEY_ACTIVE_MS = "active_trip_ms"
+        const val KEY_HOME = "fav_home"
+        const val KEY_WORK = "fav_work"
+        const val RESUME_WITHIN_MS = 4 * 3_600_000L
+        const val OVERPASS_WAIT_MS = 45_000L
         const val LOOKUP_EVERY_MS = 6_000L
         const val LOOKUP_EVERY_M = 80.0
         const val OVER_ALERT_EVERY_MS = 60_000L

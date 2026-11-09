@@ -21,6 +21,8 @@ leaves your device, and why.
 | **Your routes** (start, destination, the route line, turn-by-turn progress) | In-app navigation | Calculated on the device by the built-in routing engine. Never sent anywhere |
 | **Last car position** | Opening the map where the car is | Stored only on the device |
 | **Music files** on this unit, an SD card or a USB drive (audio only) — optional | AutoVerse's own music player and the Music page library | Read on the device only. Never uploaded or copied |
+| **Trips** (time, distance, top speed), fuel price/mileage, odometer, service/PUC/insurance dates | Car page: trip log, fuel cost, reminders | Stored only on the device; clear trips anytime |
+| **App usage time** (optional "Usage access") | Head unit check: busiest apps and apps unused for 30+ days | Read on the device only, never stored or sent |
 | **Other music apps' libraries** (lists of playlists/songs those apps choose to share) | Browsing and starting songs from the Music page | Read on the device only, only while the Music page is open |
 | **Now-playing media** (title, artist, artwork, queue) — requires the "notification access" you grant | Music controls on Home | Read on the device only. Notifications themselves are never read, stored or sent |
 | **Phone call state** (ringing / in call, and the caller number only if Android provides it) — optional, only if you enable "Show incoming calls here" | Temporarily showing the call on Home | Stays on the device, never stored |
@@ -46,6 +48,10 @@ never see this traffic.
    destination, AutoVerse sends the text you typed and your location
    **rounded to about 1 km** (so nearby places come first). Your exact
    position is never sent. Search data © OpenStreetMap contributors.
+4b. **Stops nearby / along the route — Overpass API (overpass-api.de).** When
+   you tap Petrol, CNG, EV charging, Toilets or Food, AutoVerse asks
+   OpenStreetMap's Overpass service for those places near you or along your
+   route, sending positions **rounded to about 100 m**. Nothing else is sent.
 5. **Road data for navigation — BRouter (brouter.de).** The first time you
    navigate in an area, AutoVerse downloads that area's road data (a 5°×5°
    region file). The server sees your IP address and which region file was

@@ -59,6 +59,7 @@ class SettingsRepository(private val context: Context) {
                 appsRecentCollapsed = preferences[KEY_APPS_RECENT_COLLAPSED] ?: defaults.appsRecentCollapsed,
                 mapsPlacesCollapsed = preferences[KEY_MAPS_PLACES_COLLAPSED] ?: defaults.mapsPlacesCollapsed,
                 fullScreen = preferences[KEY_FULL_SCREEN] ?: defaults.fullScreen,
+                resumeMusicOnStart = preferences[KEY_RESUME_MUSIC] ?: defaults.resumeMusicOnStart,
                 homeLayout = HomeLayout(
                     showMap = preferences[KEY_HOME_SHOW_MAP] ?: defaults.homeLayout.showMap,
                     showMusic = preferences[KEY_HOME_SHOW_MUSIC] ?: defaults.homeLayout.showMusic,
@@ -69,6 +70,10 @@ class SettingsRepository(private val context: Context) {
                 ).normalized(),
             )
         }
+
+    suspend fun setResumeMusicOnStart(enabled: Boolean) {
+        context.settingsDataStore.edit { it[KEY_RESUME_MUSIC] = enabled }
+    }
 
     suspend fun setFullScreen(enabled: Boolean) {
         context.settingsDataStore.edit { it[KEY_FULL_SCREEN] = enabled }
@@ -188,6 +193,7 @@ class SettingsRepository(private val context: Context) {
         val KEY_APPS_RECENT_COLLAPSED = booleanPreferencesKey("apps_recent_collapsed")
         val KEY_MAPS_PLACES_COLLAPSED = booleanPreferencesKey("maps_places_collapsed")
         val KEY_FULL_SCREEN = booleanPreferencesKey("full_screen")
+        val KEY_RESUME_MUSIC = booleanPreferencesKey("resume_music_on_start")
         val KEY_HOME_SHOW_MAP = booleanPreferencesKey("home_show_map")
         val KEY_HOME_SHOW_MUSIC = booleanPreferencesKey("home_show_music")
         val KEY_HOME_SHOW_SPEED = booleanPreferencesKey("home_show_speed")

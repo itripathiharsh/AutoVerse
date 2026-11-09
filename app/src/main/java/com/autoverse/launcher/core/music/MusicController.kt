@@ -101,6 +101,7 @@ class MusicController(app: Application) : AndroidViewModel(app) {
     /** Plays [tracks] from [startIndex] in AutoVerse's own player. */
     fun playLocal(tracks: List<LocalTrack>, startIndex: Int) {
         if (tracks.isEmpty()) return
+        AutoVersePlaybackService.saveQueue(getApplication(), tracks, startIndex)
         viewModelScope.launch {
             val controller = connectPlayer() ?: return@launch
             val items = tracks.map { t ->

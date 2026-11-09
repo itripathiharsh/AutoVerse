@@ -302,6 +302,8 @@ internal fun HomeSpeedPanel(
                     "km/h",
                     style = MaterialTheme.typography.titleMedium,
                     color = colors.textSecondary,
+                    maxLines = 1,
+                    softWrap = false,
                     modifier = Modifier.padding(bottom = if (compact) 8.dp else 12.dp),
                 )
             }

@@ -62,6 +62,10 @@ import com.autoverse.launcher.core.permissions.CarSetupStatus
 import com.autoverse.launcher.core.design.components.LocalOpenMusic
 import com.autoverse.launcher.core.design.components.LocalOpenCar
 import com.autoverse.launcher.core.car.CarController
+import com.autoverse.launcher.core.car.DriveSession
+import com.autoverse.launcher.core.media.MediaUiState
+import com.autoverse.launcher.core.media.isPlaying
+import androidx.compose.runtime.rememberUpdatedState
 import com.autoverse.launcher.feature.car.CarScreen
 import androidx.compose.ui.graphics.graphicsLayer
 import com.autoverse.launcher.core.design.components.LocalUse24HourClock
@@ -125,6 +129,54 @@ fun AppRoot(
     var screen by rememberSaveable { mutableStateOf(Screen.HOME) }
     var editingHome by rememberSaveable { mutableStateOf(false) }
     FullScreenEffect(enabled = settings.fullScreen)
+
+    // Entry-level units (< 3 GB RAM): no fades or colour animations at all —
+    // every frame goes to the map and the controls.
+    val entryLevelUnit = remember { isEntryLevelUnit(viewModel.getApplication()) }
+    val reduceMotion = settings.reducedMotion || entryLevelUnit
+
+    // New drive (car switched on): offer to continue an unfinished trip and
+    // resume the music that was playing when the car was switched off.
+    val driveContext = LocalContext.current
+    val driveScope = rememberCoroutineScope()
+    val driveSession = remember { DriveSession(driveContext) }
+    val latestSettings by rememberUpdatedState(settings)
+    val latestMedia by rememberUpdatedState(mediaState)
+    val driveLifecycle = LocalLifecycleOwner.current
+    DisposableEffect(driveLifecycle) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> if (driveSession.onStart()) {
+                    navigation.offerResume()
+                    val playingNow = (latestMedia as? MediaUiState.Active)?.status?.isPlaying == true
+                    if (latestSettings.resumeMusicOnStart && driveSession.musicWasPlaying && !playingNow) {
+                        driveScope.launch {
+                            kotlinx.coroutines.delay(2_500) // let the unit's audio come up first
+                            driveSession.resumeMusic()
+                        }
+                    }
+                }
+                Lifecycle.Event.ON_STOP -> driveSession.onStop(
+                    musicPlaying = (latestMedia as? MediaUiState.Active)?.status?.isPlaying == true,
+                )
+                else -> Unit
+            }
+        }
+        driveLifecycle.lifecycle.addObserver(observer)
+        onDispose { driveLifecycle.lifecycle.removeObserver(observer) }
+    }
+
+    // Home banner when a renewal or service is due soon.
+    val reminders by car.reminders.collectAsStateWithLifecycle()
+    val odometer by car.odometerKm.collectAsStateWithLifecycle()
+    val reminderNotice = remember(reminders, odometer) {
+        val today = java.time.LocalDate.now()
+        reminders
+            .map { it to com.autoverse.launcher.core.car.reminderUrgency(it, today, odometer) }
+            .filter { it.second != com.autoverse.launcher.core.car.ReminderUrgency.OK }
+            .maxByOrNull { it.second }
+            ?.let { (r, _) -> "${r.kind.title} ${com.autoverse.launcher.core.car.reminderDetail(r, today, odometer)}" }
+    }
     var drawerQuery by rememberSaveable { mutableStateOf("") }
     var drawerCategory by rememberSaveable { mutableStateOf(AppCategory.ALL) }
     var navQuery by rememberSaveable { mutableStateOf("") }
@@ -306,7 +358,7 @@ fun AppRoot(
         themeId = settings.themeId,
         appearanceMode = settings.appearanceMode,
         reducedMotion = effectiveReducedMotion(
-            userSetting = settings.reducedMotion,
+            userSetting = reduceMotion,
             systemAnimationsDisabled = systemAnimationsDisabled,
         ),
     ) {
@@ -350,7 +402,7 @@ fun AppRoot(
                     onNotNow = { setupGateDismissed = true },
                     modifier = Modifier.fillMaxSize(),
                 )
-            } else ScreenFadeIn(key = screen, enabled = !settings.reducedMotion) { when (screen) {
+            } else ScreenFadeIn(key = screen, enabled = !reduceMotion) { when (screen) {
                     Screen.HOME -> {
                         val dashboard = rememberDashboardData(
                             viewModel = viewModel,
@@ -371,6 +423,8 @@ fun AppRoot(
                             },
                             onOpenMusic = { screen = Screen.MUSIC },
                             speedLimitKmh = speedLimit,
+                            notice = reminderNotice,
+                            onNotice = { screen = Screen.CAR },
                             homeLayout = settings.homeLayout,
                             onHomeLayoutChange = viewModel::setHomeLayout,
                             editingHome = editingHome,
@@ -617,6 +671,7 @@ fun AppRoot(
                             },
                             onResetSettings = viewModel::resetSettings,
                             onSetFullScreen = viewModel::setFullScreen,
+                            onSetResumeMusic = viewModel::setResumeMusicOnStart,
                             onEditHome = {
                                 screen = Screen.HOME
                                 editingHome = true
@@ -876,6 +931,16 @@ private fun FullScreenEffect(enabled: Boolean) {
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
+}
+
+/** Under 3 GB of RAM (or Android's own low-RAM flag): run in the lightest mode. */
+private fun isEntryLevelUnit(context: Context): Boolean = try {
+    val am = context.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+    val mem = android.app.ActivityManager.MemoryInfo().also { am.getMemoryInfo(it) }
+    am.isLowRamDevice ||
+        com.autoverse.launcher.core.car.unitClassFor(mem.totalMem / (1024 * 1024)) == com.autoverse.launcher.core.car.UnitClass.ENTRY
+} catch (_: Exception) {
+    false
 }
 
 private tailrec fun Context.findActivity(): android.app.Activity? = when (this) {

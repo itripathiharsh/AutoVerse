@@ -120,6 +120,45 @@ class RouteTest {
     }
 
     @Test
+    fun `stops are kept only ahead and close to the route`() {
+        val ahead = NavPlace("Indian Oil", "", 28.6003, 77.2080)    // ~800 m along, 30 m off
+        val behind = NavPlace("Behind", "", 28.6000, 77.1990)       // before the start
+        val far = NavPlace("Far away", "", 28.6300, 77.2050)        // 3 km off the road
+        val stops = stopsAlongRoute(route, traveledMeters = 0.0, candidates = listOf(far, behind, ahead))
+        assertEquals(listOf("Indian Oil"), stops.map { it.place.name })
+        assertEquals(780.0, stops[0].aheadMeters, 40.0)
+        assertTrue(stops[0].detourMeters < 60)
+    }
+
+    @Test
+    fun `overpass query and parsing`() {
+        val q = overpassQuery(PoiCategory.CNG, listOf(GeoPoint(28.63151, 77.21672)), 6000, 30)
+        assertEquals(
+            "[out:json][timeout:40];nwr[\"amenity\"=\"fuel\"][\"fuel:cng\"=\"yes\"](around:6000,28.632,77.217);out center 30;",
+            q,
+        )
+        val json = """
+            {"elements":[
+              {"type":"node","lat":28.62,"lon":77.21,"tags":{"amenity":"fuel","brand":"Indian Oil","fuel:cng":"yes","opening_hours":"24/7"}},
+              {"type":"way","center":{"lat":28.61,"lon":77.22},"tags":{"amenity":"fuel","name":"HP Petrol Pump","brand":"HP"}},
+              {"type":"node","lat":28.60,"lon":77.20}
+            ]}
+        """.trimIndent()
+        val places = parseOverpassPlaces(json, "Petrol")
+        assertEquals(listOf("Indian Oil", "HP Petrol Pump", "Petrol"), places.map { it.name })
+        assertEquals("CNG · Open 24 h", places[0].detail)
+        assertEquals("HP", places[1].detail)
+        assertEquals(28.61, places[1].latitude, 1e-9)
+    }
+
+    @Test
+    fun `search points are spread ahead on the route`() {
+        val pts = samplePointsAhead(route, 0.0, listOf(0.5, 1.2))
+        assertEquals(2, pts.size)
+        assertTrue(pts[0].longitude > 77.204 && pts[0].latitude < 28.6001)
+    }
+
+    @Test
     fun `speed limit is read from way tags`() {
         assertEquals(50, maxspeedFromTags("highway=primary maxspeed=50 surface=asphalt"))
         assertEquals(0, maxspeedFromTags("highway=primary maxspeed=none"))

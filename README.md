@@ -30,6 +30,15 @@ is tuned for slow head units.
 
 ## Features
 
+**1.5 highlights** — dark-first premium design (big glanceable speed with the
+road's speed-limit sign, artwork-tinted music panel, header-free map, smooth
+screen fades that switch off automatically on entry-level units), full screen
+by default, Edit home, speed-limit & speed-camera warnings, Hindi directions
+and voice, petrol/CNG/EV/toilets/food nearby and along the route, music
+resumes when the car starts, "continue your trip?", Home/Work shortcuts, and a
+**Car** page: automatic trip log with fuel cost, service/PUC/insurance
+reminders (Home banner), speaker test and an honest head-unit health check.
+
 **Home cockpit** — live map (~60%), music (~20%) and speed (~20%) on every
 screen size; the speed panel switches to the incoming call while a call rings
 (optional).

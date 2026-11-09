@@ -162,6 +162,8 @@ fun HomeScreen(
     editingHome: Boolean = false,
     onEditingHomeChange: (Boolean) -> Unit = {},
     speedLimitKmh: Int? = null,
+    notice: String? = null,
+    onNotice: () -> Unit = {},
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -249,6 +251,8 @@ fun HomeScreen(
             rail = rail,
             layout = homeLayout,
             onEditHome = { onEditingHomeChange(true) },
+            notice = notice,
+            onNotice = onNotice,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
@@ -278,6 +282,8 @@ internal fun HomeScreenContent(
     rail: RailSection = RailSection(),
     layout: HomeLayout = HomeLayout(),
     onEditHome: (() -> Unit)? = null,
+    notice: String? = null,
+    onNotice: () -> Unit = {},
 ) {
     val colors = LocalAutoVerseColors.current
     BoxWithConstraints(modifier = modifier.background(colors.backgroundTop)) {
@@ -301,6 +307,8 @@ internal fun HomeScreenContent(
                 fpsText = data.fpsText,
                 onOpenSettings = rail.onOpenSettings,
                 onEditHome = onEditHome,
+                notice = notice,
+                onNotice = onNotice,
             )
             Row(
                 modifier = Modifier

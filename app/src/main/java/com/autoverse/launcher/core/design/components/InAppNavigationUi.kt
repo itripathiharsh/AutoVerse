@@ -63,6 +63,11 @@ import com.autoverse.launcher.core.routing.InAppNavigationController
 import com.autoverse.launcher.core.routing.ManeuverType
 import com.autoverse.launcher.core.routing.NavPlace
 import com.autoverse.launcher.core.routing.NavState
+import com.autoverse.launcher.core.routing.PoiCategory
+import com.autoverse.launcher.core.routing.RouteStop
+import com.autoverse.launcher.core.routing.StopsState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.outlined.LocalGasStation
 import com.autoverse.launcher.core.routing.NavText
 import com.autoverse.launcher.core.routing.LocalNavLanguage
 import com.autoverse.launcher.core.routing.formatDistance
@@ -194,6 +199,18 @@ fun BoxScope.InAppNavigationOverlay(
                 TextAction(text = NavText.cancel(lang), onClick = controller::stop)
                 if (!compact) TextAction(text = "Google Maps", onClick = { onOpenInGoogleMaps(s.place) })
             }
+            val favs by controller.favorites.collectAsStateWithLifecycle()
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Save as", style = MaterialTheme.typography.labelMedium, color = LocalAutoVerseColors.current.textFaint)
+                TextAction(
+                    text = if (favs["home"] == s.place) "🏠 Home ✓" else "🏠 Home",
+                    onClick = { controller.setFavorite("home", s.place) },
+                )
+                TextAction(
+                    text = if (favs["work"] == s.place) "💼 Work ✓" else "💼 Work",
+                    onClick = { controller.setFavorite("work", s.place) },
+                )
+            }
         }
 
         is NavState.Guiding -> {
@@ -229,10 +246,26 @@ fun BoxScope.InAppNavigationOverlay(
                 voiceOn = voiceOn,
                 onToggleVoice = controller::toggleVoice,
                 onEnd = controller::stop,
+                onStops = { controller.findStops(PoiCategory.PETROL) },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(AutoVerseSpacing.xs),
             )
+        }
+
+        is NavState.ResumeOffer -> OverlayCard(Modifier.align(Alignment.Center)) {
+            val colors = LocalAutoVerseColors.current
+            Text(
+                if (lang == com.autoverse.launcher.core.routing.NavLanguage.HINDI) "यात्रा जारी रखें?" else "Continue your trip?",
+                style = MaterialTheme.typography.titleMedium,
+                color = colors.textPrimary,
+            )
+            Text(s.place.name, style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Spacer(Modifier.size(AutoVerseSpacing.xs))
+            Row(horizontalArrangement = Arrangement.spacedBy(AutoVerseSpacing.xs), verticalAlignment = Alignment.CenterVertically) {
+                PrimaryAction(text = NavText.start(lang), onClick = controller::acceptResume)
+                TextAction(text = NavText.cancel(lang), onClick = controller::declineResume)
+            }
         }
 
         is NavState.Arrived -> OverlayCard(Modifier.align(Alignment.Center)) {
@@ -256,6 +289,110 @@ fun BoxScope.InAppNavigationOverlay(
             }
         }
     }
+
+    // Stops on the way / nearby (petrol, CNG, EV, toilets, food), over everything else.
+    val stops by controller.stopsState.collectAsStateWithLifecycle()
+    if (stops.category != null) {
+        StopsPanel(
+            state = stops,
+            guiding = state is NavState.Guiding,
+            onCategory = controller::findStops,
+            onPick = { stop ->
+                keyboard?.hide()
+                focus.clearFocus()
+                controller.addStop(stop.place)
+            },
+            onClose = controller::closeStops,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(AutoVerseSpacing.xs),
+        )
+    }
+}
+
+@Composable
+private fun StopsPanel(
+    state: StopsState,
+    guiding: Boolean,
+    onCategory: (PoiCategory) -> Unit,
+    onPick: (RouteStop) -> Unit,
+    onClose: () -> Unit,
+    modifier: Modifier,
+) {
+    val colors = LocalAutoVerseColors.current
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(AutoVerseShapes.small)
+            .background(colors.surface.copy(alpha = 0.97f))
+            .padding(AutoVerseSpacing.sm),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            LazyRow(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(AutoVerseSpacing.xs)) {
+                items(PoiCategory.entries) { c ->
+                    CategoryChip(c, selected = state.category == c) { onCategory(c) }
+                }
+            }
+            Icon(
+                Icons.Outlined.Close,
+                contentDescription = "Close",
+                tint = colors.textSecondary,
+                modifier = Modifier.size(40.dp).clip(CircleShape).clickable(onClick = onClose).padding(8.dp),
+            )
+        }
+        if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = AutoVerseSpacing.xs))
+        state.error?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = colors.textFaint, modifier = Modifier.padding(AutoVerseSpacing.xs)) }
+        LazyColumn(modifier = Modifier.heightIn(max = 230.dp)) {
+            items(state.stops, key = { it.place.name + it.place.latitude + it.place.longitude }) { stop ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onPick(stop) }
+                        .heightIn(min = AutoVerseSpacing.touchMin)
+                        .padding(horizontal = AutoVerseSpacing.xs, vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(stop.place.name, style = MaterialTheme.typography.titleSmall, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        if (stop.place.detail.isNotBlank()) {
+                            Text(stop.place.detail, style = MaterialTheme.typography.bodySmall, color = colors.textFaint, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            if (guiding) "${formatDistance(stop.aheadMeters)} ahead" else formatDistance(stop.aheadMeters),
+                            style = MaterialTheme.typography.titleSmall,
+                            color = colors.accent,
+                        )
+                        if (guiding) {
+                            Text("${formatDistance(stop.detourMeters)} off route", style = MaterialTheme.typography.bodySmall, color = colors.textFaint)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CategoryChip(category: PoiCategory, selected: Boolean, onClick: () -> Unit) {
+    val colors = LocalAutoVerseColors.current
+    Row(
+        modifier = Modifier
+            .clip(AutoVerseShapes.pill)
+            .background(if (selected) colors.accent else colors.surfaceHighlight)
+            .clickable(onClick = onClick)
+            .heightIn(min = AutoVerseSpacing.touchMin)
+            .padding(horizontal = AutoVerseSpacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            "${category.emoji} ${category.label}",
+            style = MaterialTheme.typography.labelLarge,
+            color = if (selected) colors.onAccent else colors.textPrimary,
+            maxLines = 1,
+        )
+    }
 }
 
 /** The "Where to?" row under the map; hidden while guiding so the map gets the room. */
@@ -268,9 +405,10 @@ fun InAppNavigationSearchRow(
     val state by controller.state.collectAsStateWithLifecycle()
     val search by controller.searchState.collectAsStateWithLifecycle()
     val recents by controller.recents.collectAsStateWithLifecycle()
+    val favorites by controller.favorites.collectAsStateWithLifecycle()
     val focus = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
-    if (state is NavState.Guiding || state is NavState.Preview) return
+    if (state is NavState.Guiding || state is NavState.Preview || state is NavState.ResumeOffer) return
 
     Spacer(Modifier.size(AutoVerseSpacing.xs))
     Row(
@@ -298,12 +436,28 @@ fun InAppNavigationSearchRow(
         )
         TextAction(text = "Google Maps", onClick = onOpenGoogleMaps)
     }
-    if (showRecents && search.query.isBlank() && recents.isNotEmpty() && state is NavState.Idle) {
+    if (showRecents && search.query.isBlank() && state is NavState.Idle) {
         val colors = LocalAutoVerseColors.current
         LazyRow(
             modifier = Modifier.padding(top = AutoVerseSpacing.xs),
             horizontalArrangement = Arrangement.spacedBy(AutoVerseSpacing.xs),
         ) {
+            // Home / Work first (one tap to the daily drives), then quick "nearby" chips.
+            items(listOf("home" to "🏠 Home", "work" to "💼 Work").filter { favorites[it.first] != null }) { (key, label) ->
+                val place = favorites.getValue(key)!!
+                Row(
+                    modifier = Modifier
+                        .clip(AutoVerseShapes.pill)
+                        .background(colors.accentSoft)
+                        .clickable { controller.navigateTo(place) }
+                        .heightIn(min = AutoVerseSpacing.touchMin)
+                        .padding(horizontal = AutoVerseSpacing.sm),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) { Text(label, style = MaterialTheme.typography.labelLarge, color = colors.textPrimary) }
+            }
+            items(PoiCategory.entries.take(3)) { c ->
+                CategoryChip(c, selected = false) { controller.findStops(c) }
+            }
             items(recents.take(6), key = { it.name + it.detail + it.latitude }) { place ->
                 Row(
                     modifier = Modifier
@@ -439,6 +593,7 @@ private fun GuidanceFooter(
     voiceOn: Boolean,
     onToggleVoice: () -> Unit,
     onEnd: () -> Unit,
+    onStops: () -> Unit,
     modifier: Modifier,
 ) {
     val colors = LocalAutoVerseColors.current
@@ -466,6 +621,12 @@ private fun GuidanceFooter(
                 maxLines = 1,
             )
         }
+        TransportButton(
+            icon = Icons.Outlined.LocalGasStation,
+            contentDescription = "Stops on the way",
+            onClick = onStops,
+        )
+        Spacer(Modifier.width(AutoVerseSpacing.xs))
         TransportButton(
             icon = if (voiceOn) Icons.Outlined.VolumeUp else Icons.Outlined.VolumeOff,
             contentDescription = if (voiceOn) "Mute voice" else "Unmute voice",

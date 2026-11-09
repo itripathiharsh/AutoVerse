@@ -174,6 +174,7 @@ fun SettingsScreen(
     initialCategory: SettingsCategory? = null,
     onSetFullScreen: (Boolean) -> Unit = {},
     onEditHome: () -> Unit = {},
+    onSetResumeMusic: (Boolean) -> Unit = {},
 ) {
     var selectedCategoryName by rememberSaveable {
         mutableStateOf((initialCategory ?: SettingsCategory.APPEARANCE).name)
@@ -212,6 +213,7 @@ fun SettingsScreen(
         openObd = onOpenObd,
         setFullScreen = onSetFullScreen,
         editHome = onEditHome,
+        setResumeMusic = onSetResumeMusic,
     )
 
     val selectCategory: (SettingsCategory) -> Unit = { category ->
@@ -462,6 +464,7 @@ private class SettingsCallbacks(
     val openObd: () -> Unit,
     val setFullScreen: (Boolean) -> Unit,
     val editHome: () -> Unit,
+    val setResumeMusic: (Boolean) -> Unit,
 )
 
 /**
@@ -922,6 +925,13 @@ private fun AppearanceSettings(
             subtitle = "Hide Android's status and navigation bars. Swipe from the top or bottom edge to show them briefly.",
             checked = settings.fullScreen,
             onCheckedChange = callbacks.setFullScreen,
+        )
+        Spacer(Modifier.height(AutoVerseSpacing.xs))
+        SwitchRow(
+            title = "Resume music when the car starts",
+            subtitle = "If music was playing when you switched the car off, it continues when you start driving again.",
+            checked = settings.resumeMusicOnStart,
+            onCheckedChange = callbacks.setResumeMusic,
         )
         com.autoverse.launcher.core.routing.LocalInAppNavigation.current?.let { nav ->
             val alertsOn by nav.alertsOn.collectAsState()

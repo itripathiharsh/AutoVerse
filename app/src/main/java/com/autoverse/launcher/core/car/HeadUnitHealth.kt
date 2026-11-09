@@ -154,7 +154,7 @@ class HeadUnitHealth(context: Context) {
     private fun readCpuMaxMhz(): Int? = try {
         (0 until Runtime.getRuntime().availableProcessors()).mapNotNull { i ->
             File("/sys/devices/system/cpu/cpu$i/cpufreq/cpuinfo_max_freq").takeIf { it.canRead() }?.readText()?.trim()?.toLongOrNull()
-        }.maxOrNull()?.let { (it / 1000).toInt() }
+        }.maxOrNull()?.let { (it / 1000).toInt() }?.takeIf { it > 0 }
     } catch (_: Exception) {
         null
     }

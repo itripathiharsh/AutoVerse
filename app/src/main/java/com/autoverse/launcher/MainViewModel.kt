@@ -323,6 +323,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // Home shows the weather without visiting the Speed page: fetch once a
+    // position is known, then at most every 2 minutes (the repository's
+    // 20-minute / 8-km cache keeps actual network calls rare).
+    private var lastWeatherAttemptMs = 0L
+    private val autoWeather = viewModelScope.launch {
+        speedometerData.collect { d ->
+            val now = System.currentTimeMillis()
+            if (d.latitude != null && d.longitude != null && now - lastWeatherAttemptMs > 120_000L) {
+                lastWeatherAttemptMs = now
+                weatherRepository.updateWeather(d.latitude, d.longitude)
+            }
+        }
+    }
+
     // ---- Live vehicle data (OBD over Bluetooth ELM327) ----
 
     private val _obdState = MutableStateFlow<ObdConnectionState>(ObdConnectionState.Disconnected)
@@ -504,6 +518,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setClock24h(enabled: Boolean) {
         viewModelScope.launch { settingsRepository.setClock24h(enabled) }
+    }
+
+    fun setResumeMusicOnStart(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.setResumeMusicOnStart(enabled) }
     }
 
     fun setFullScreen(enabled: Boolean) {

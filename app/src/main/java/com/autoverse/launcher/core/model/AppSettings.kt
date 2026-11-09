@@ -93,4 +93,6 @@ data class AppSettings(
     val fullScreen: Boolean = true,
     /** Edit home: which panels Home shows and how the map is placed. */
     val homeLayout: HomeLayout = HomeLayout(),
+    /** New drive: resume the music that was playing when the car was switched off. */
+    val resumeMusicOnStart: Boolean = true,
 )

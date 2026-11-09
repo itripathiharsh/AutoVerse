@@ -1,5 +1,9 @@
 package com.autoverse.launcher.core.design.components
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -57,6 +61,8 @@ fun DashboardTopBar(
     onOpenDiagnostics: (() -> Unit)? = null,
     onOpenSettings: (() -> Unit)? = null,
     onEditHome: (() -> Unit)? = null,
+    notice: String? = null,
+    onNotice: () -> Unit = {},
 ) {
     val colors = LocalAutoVerseColors.current
     val spec = LocalPerformanceSpec.current
@@ -88,6 +94,21 @@ fun DashboardTopBar(
             state = connectivity.bluetooth,
             contentDescription = bluetoothDescription(connectivity.bluetooth),
         )
+        if (notice != null) {
+            // A due renewal/service: one tappable pill, opens the Car page.
+            Text(
+                text = "⚠ $notice",
+                style = MaterialTheme.typography.labelLarge,
+                color = colors.onAccent,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .clip(com.autoverse.launcher.core.design.tokens.AutoVerseShapes.pill)
+                    .background(colors.warning)
+                    .clickable(onClick = onNotice)
+                    .padding(horizontal = AutoVerseSpacing.sm, vertical = AutoVerseSpacing.xxs),
+            )
+        }
         Spacer(Modifier.weight(1f))
         if (chips != StatusChipsMode.NONE && spec.showFpsReadout && fpsText != null) {
             StatusChip(label = fpsText, leadingDot = true, tone = StatusTone.SUCCESS)

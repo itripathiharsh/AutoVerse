@@ -193,10 +193,16 @@ private fun TripsSection(car: CarController) {
             StatTile("Fuel this month", "%.1f L".format(fuel.litresFor(monthKm)), "at ${trimNum(fuel.kmPerLitre)} km/L", Modifier.weight(1f))
         }
         Spacer(Modifier.height(AutoVerseSpacing.sm))
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AutoVerseSpacing.xs)) {
-            Icon(Icons.Outlined.LocalGasStation, null, tint = colors.accent)
-            AutoVerseTextField(value = price, onValueChange = { price = it }, placeholder = "₹ per litre", modifier = Modifier.weight(1f))
-            AutoVerseTextField(value = mileage, onValueChange = { mileage = it }, placeholder = "km per litre", modifier = Modifier.weight(1f))
+        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(AutoVerseSpacing.xs)) {
+            Icon(Icons.Outlined.LocalGasStation, null, tint = colors.accent, modifier = Modifier.padding(bottom = 16.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Fuel price (₹ per litre)", style = MaterialTheme.typography.labelMedium, color = colors.textSecondary)
+                AutoVerseTextField(value = price, onValueChange = { price = it }, placeholder = "105", modifier = Modifier.fillMaxWidth())
+            }
+            Column(Modifier.weight(1f)) {
+                Text("Your car's mileage (km per litre)", style = MaterialTheme.typography.labelMedium, color = colors.textSecondary)
+                AutoVerseTextField(value = mileage, onValueChange = { mileage = it }, placeholder = "15", modifier = Modifier.fillMaxWidth())
+            }
             PrimaryAction(text = "Save", onClick = {
                 val p = price.toDoubleOrNull(); val m = mileage.toDoubleOrNull()
                 if (p != null && m != null) car.setFuel(p, m)
@@ -416,7 +422,7 @@ private fun HealthSection(car: CarController, onOpenDiagnostics: () -> Unit) {
             }
         }
         item {
-            Column(Modifier.clip(AutoVerseShapes.small).background(colors.surfaceHighlight).padding(AutoVerseSpacing.md)) {
+            Column(Modifier.fillMaxWidth().clip(AutoVerseShapes.small).background(colors.surfaceHighlight).padding(AutoVerseSpacing.md)) {
                 Text("What to do", style = MaterialTheme.typography.titleMedium, color = colors.textPrimary)
                 r.tips.forEach { Text("• $it", style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary) }
             }
@@ -450,14 +456,14 @@ private fun HealthSection(car: CarController, onOpenDiagnostics: () -> Unit) {
                 items(r.unusedApps, key = { "u" + it.packageName }) { a ->
                     AppRow(
                         a.label,
-                        (if (a.preinstalled) "Pre-installed · " else "") + (a.lastUsedDaysAgo?.let { "last opened $it days ago" } ?: "never opened"),
+                        (if (a.preinstalled) "Pre-installed · " else "") + (a.lastUsedDaysAgo?.let { "last opened $it days ago" } ?: "not opened in the last 2 months"),
                         if (a.preinstalled) "Disable" else "Uninstall",
                     ) { openAppInfo(context, a.packageName) }
                 }
             }
         }
         item {
-            Column(Modifier.clip(AutoVerseShapes.small).background(colors.surfaceHighlight).padding(AutoVerseSpacing.md)) {
+            Column(Modifier.fillMaxWidth().clip(AutoVerseShapes.small).background(colors.surfaceHighlight).padding(AutoVerseSpacing.md)) {
                 Text("AutoVerse storage", style = MaterialTheme.typography.titleMedium, color = colors.textPrimary)
                 Text("Road data for navigation: ${r.autoverseRoadDataMb} MB · Map pictures: ${r.autoverseMapCacheMb} MB (trimmed automatically)", style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
                 Row {
