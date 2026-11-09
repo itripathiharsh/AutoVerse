@@ -58,6 +58,8 @@ import com.autoverse.launcher.feature.navigation.NavigationScreen
 import com.autoverse.launcher.feature.obd.ObdDiagnosticsScreen
 import com.autoverse.launcher.feature.probe.MapDisplayProbeScreen
 import com.autoverse.launcher.feature.probe.MapEmbedProbeScreen
+import com.autoverse.launcher.core.permissions.CarSetupStatus
+import com.autoverse.launcher.feature.onboarding.FinishSetupScreen
 import com.autoverse.launcher.feature.onboarding.OnboardingScreen
 import com.autoverse.launcher.feature.settings.SettingsCategory
 import com.autoverse.launcher.feature.settings.SettingsScreen
@@ -124,6 +126,12 @@ fun AppRoot(viewModel: MainViewModel = viewModel()) {
                 PackageManager.PERMISSION_GRANTED,
         )
     }
+
+    // Required car setup (precise location, GPS on, music control). When any
+    // of it is missing after onboarding, the "Finish car setup" gate shows at
+    // launch/resume; "Not now" hides it for this session.
+    var requiredSetupReady by remember { mutableStateOf(CarSetupStatus.read(context).allRequiredGranted) }
+    var setupGateDismissed by rememberSaveable { mutableStateOf(false) }
 
     val locationLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions(),
@@ -246,6 +254,7 @@ fun AppRoot(viewModel: MainViewModel = viewModel()) {
                 phoneGranted =
                     ContextCompat.checkSelfPermission(context, Manifest.permission.READ_PHONE_STATE) ==
                         PackageManager.PERMISSION_GRANTED
+                requiredSetupReady = CarSetupStatus.read(context).allRequiredGranted
                 // The log records only transitions; repeated resumes with an
                 // unchanged state stay silent.
                 viewModel.noteNotificationAccess(granted)
@@ -299,13 +308,16 @@ fun AppRoot(viewModel: MainViewModel = viewModel()) {
                     onSelectTheme = { viewModel.setTheme(it) },
                     premiumUnlocked = settings.premiumUnlocked,
                     onUnlockPremium = { viewModel.setPremiumUnlocked(true) },
-                    mediaAccessGranted = notificationAccessGranted,
-                    onOpenMediaAccess = {
-                        openNotificationAccessSettings(context)
-                        notificationAccessGranted = isNotificationAccessEnabled(context)
+                    onGetStarted = {
+                        requiredSetupReady = CarSetupStatus.read(context).allRequiredGranted
+                        viewModel.setOnboardingComplete(true)
                     },
-                    locationGranted = locationGranted,
-                    onGetStarted = { viewModel.setOnboardingComplete(true) },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else if (!requiredSetupReady && !setupGateDismissed) {
+                FinishSetupScreen(
+                    onContinue = { requiredSetupReady = true },
+                    onNotNow = { setupGateDismissed = true },
                     modifier = Modifier.fillMaxSize(),
                 )
             } else when (screen) {

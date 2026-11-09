@@ -18,6 +18,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import com.autoverse.launcher.core.permissions.LocationFix
+import com.autoverse.launcher.core.permissions.locationFixFor
+import com.autoverse.launcher.core.permissions.openLocationServiceSettings
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -57,6 +61,7 @@ fun SpeedSummaryCard(
     onRequestCallPermission: () -> Unit = {},
 ) {
     val colors = LocalAutoVerseColors.current
+    val context = LocalContext.current
     val status = if (hasLocationPermission) speedometerData.gpsStatus else GpsStatus.NO_ACCESS
     val speed = speedometerData.currentSpeedKmh.takeIf { status == GpsStatus.LIVE }
 
@@ -128,8 +133,16 @@ fun SpeedSummaryCard(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
+            val fix = locationFixFor(
+                hasPermission = status != GpsStatus.NO_ACCESS,
+                serviceOn = status != GpsStatus.PROVIDER_OFF,
+            )
             when {
-                !hasLocationPermission -> TextAction(text = "Allow location", onClick = onRequestLocationPermission)
+                fix == LocationFix.GRANT -> TextAction(text = fix.label, onClick = onRequestLocationPermission)
+                fix == LocationFix.TURN_ON -> TextAction(
+                    text = fix.label,
+                    onClick = { openLocationServiceSettings(context) },
+                )
                 !hasCallPermission && !compact ->
                     TextAction(text = "Show incoming calls here", onClick = onRequestCallPermission)
             }

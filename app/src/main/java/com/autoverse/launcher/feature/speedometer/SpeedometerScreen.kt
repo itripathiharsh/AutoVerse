@@ -70,7 +70,14 @@ import com.autoverse.launcher.core.design.components.WidgetContainer
 import com.autoverse.launcher.core.design.tokens.AutoVerseIcons
 import com.autoverse.launcher.core.design.tokens.AutoVerseShapes
 import com.autoverse.launcher.core.design.tokens.AutoVerseSpacing
+import android.content.Context
+import androidx.compose.ui.platform.LocalContext
+import com.autoverse.launcher.core.location.GpsStatus
 import com.autoverse.launcher.core.location.SpeedometerData
+import com.autoverse.launcher.core.permissions.LocationFix
+import com.autoverse.launcher.core.permissions.locationFixFor
+import com.autoverse.launcher.core.permissions.openAppPermissionSettings
+import com.autoverse.launcher.core.permissions.openLocationServiceSettings
 import com.autoverse.launcher.core.weather.WeatherUiState
 
 @Composable
@@ -150,6 +157,7 @@ fun SpeedometerScreen(
 
                     WeatherCard(
                         weatherState = weatherState,
+                        gpsStatus = speedometerData.gpsStatus,
                         onRefreshWeather = onRefreshWeather,
                         modifier = Modifier.weight(1f),
                     )
@@ -166,6 +174,7 @@ private fun SpeedometerGaugeCard(
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalAutoVerseColors.current
+    val context = LocalContext.current
     val motion = com.autoverse.launcher.core.design.tokens.LocalAutoVerseMotion.current
     val speed = speedometerData.currentSpeedKmh
     val targetSpeed = speed?.toFloat() ?: 0f
@@ -197,13 +206,24 @@ private fun SpeedometerGaugeCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                val status = speedometerData.gpsStatus
                 StatusChip(
-                    icon = if (speedometerData.isGpsActive) Icons.Outlined.GpsFixed else Icons.Outlined.GpsNotFixed,
-                    label = if (speedometerData.isGpsActive) "GPS LOCKED" else "GPS SEARCHING",
-                    tone = if (speedometerData.isGpsActive) StatusTone.SUCCESS else StatusTone.WARNING,
+                    icon = if (status == GpsStatus.LIVE) Icons.Outlined.GpsFixed else Icons.Outlined.GpsNotFixed,
+                    label = gpsChipLabel(status),
+                    tone = when (status) {
+                        GpsStatus.LIVE -> StatusTone.SUCCESS
+                        GpsStatus.NO_ACCESS, GpsStatus.PROVIDER_OFF -> StatusTone.DANGER
+                        else -> StatusTone.WARNING
+                    },
                 )
 
-                if (speedometerData.accuracyMeters != null) {
+                val fix = locationFixFor(
+                    hasPermission = status != GpsStatus.NO_ACCESS,
+                    serviceOn = status != GpsStatus.PROVIDER_OFF,
+                )
+                if (fix != null) {
+                    PrimaryAction(text = fix.label, onClick = { openLocationFix(context, fix) })
+                } else if (speedometerData.accuracyMeters != null) {
                     Text(
                         text = "±${speedometerData.accuracyMeters.toInt()}m accuracy",
                         style = MaterialTheme.typography.labelMedium,
@@ -257,7 +277,8 @@ private fun SpeedometerGaugeCard(
 
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        text = if (speed == null) "GPS Stationary" else "GPS Live",
+                        text = if (speed == null) gpsChipLabel(speedometerData.gpsStatus).lowercase()
+                            .replaceFirstChar { it.uppercase() } else "GPS live",
                         style = MaterialTheme.typography.bodySmall,
                         color = colors.textSecondary,
                     )
@@ -434,10 +455,16 @@ private fun MetricBlock(
 @Composable
 private fun WeatherCard(
     weatherState: WeatherUiState,
+    gpsStatus: GpsStatus,
     onRefreshWeather: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalAutoVerseColors.current
+    val context = LocalContext.current
+    val locationFix = locationFixFor(
+        hasPermission = gpsStatus != GpsStatus.NO_ACCESS,
+        serviceOn = gpsStatus != GpsStatus.PROVIDER_OFF,
+    )
 
     WidgetContainer(
         title = "CABIN & WEATHER",
@@ -553,19 +580,43 @@ private fun WeatherCard(
                         )
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            text = weatherState.reason,
+                            text = if (locationFix != null) {
+                                "${locationFix.explanation} — weather uses your location."
+                            } else {
+                                weatherState.reason
+                            },
                             style = MaterialTheme.typography.bodySmall,
                             color = colors.textFaint,
                         )
                     }
 
-                    TextAction(
-                        text = "Retry",
-                        onClick = onRefreshWeather,
-                    )
+                    if (locationFix != null) {
+                        PrimaryAction(text = locationFix.label, onClick = { openLocationFix(context, locationFix) })
+                    } else {
+                        TextAction(
+                            text = "Retry",
+                            onClick = onRefreshWeather,
+                        )
+                    }
                 }
             }
         }
+    }
+}
+
+/** Plain-words GPS state for the Speed page chip. */
+internal fun gpsChipLabel(status: GpsStatus): String = when (status) {
+    GpsStatus.LIVE -> "GPS LOCKED"
+    GpsStatus.NO_ACCESS -> "NO LOCATION PERMISSION"
+    GpsStatus.PROVIDER_OFF -> "LOCATION SWITCHED OFF"
+    GpsStatus.STALE -> "GPS SIGNAL LOST"
+    GpsStatus.WAITING -> "GPS SEARCHING"
+}
+
+private fun openLocationFix(context: Context, fix: LocationFix) {
+    when (fix) {
+        LocationFix.GRANT -> openAppPermissionSettings(context)
+        LocationFix.TURN_ON -> openLocationServiceSettings(context)
     }
 }
 

@@ -1,12 +1,5 @@
 package com.autoverse.launcher.feature.onboarding
 
-import android.Manifest
-import android.content.Context
-import android.content.Intent
-import android.content.pm.PackageManager
-import android.speech.RecognizerIntent
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -14,21 +7,24 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.GraphicEq
-import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.MusicNote
+import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -43,10 +39,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
 import kotlinx.coroutines.launch
 import com.autoverse.launcher.core.design.LocalAutoVerseColors
 import com.autoverse.launcher.core.design.components.BrandPlate
@@ -54,18 +50,24 @@ import com.autoverse.launcher.core.design.components.PremiumUnlockDialog
 import com.autoverse.launcher.core.design.components.PrimaryAction
 import com.autoverse.launcher.core.design.components.TextAction
 import com.autoverse.launcher.core.design.themeSpecFor
-import com.autoverse.launcher.core.media.isNotificationAccessEnabled
 import com.autoverse.launcher.core.model.AutoVerseThemeId
+import com.autoverse.launcher.core.permissions.CarSetupStatus
 import com.autoverse.launcher.core.design.tokens.AutoVerseShapes
 import com.autoverse.launcher.core.design.tokens.AutoVerseSpacing
 
+private const val PAGE_WELCOME = 0
+private const val PAGE_SETUP = 1
+private const val PAGE_THEME = 2
+private const val PAGE_FINISH = 3
+private const val PAGE_COUNT = 4
+
 /**
- * Tier 1 — first-run onboarding. Four steps: welcome, theme pick (premium
- * themes gated by the local entitlement), real connectivity/setup checks
- * (launcher chooser, media access, location, voice availability), and done.
- * Shown whenever [onboardingComplete] is false in settings; replayable from
- * Settings. Never forces any choice: the launcher chooser only opens the
- * system picker, and every step can be skipped.
+ * First-run onboarding: welcome, car setup (permissions), theme, done.
+ *
+ * The car-setup page is a gate: "Continue" stays locked until the required
+ * items — precise location, GPS switched on, music control — are ready, and
+ * the pager cannot be swiped past it. Optional items (home app, calls, OBD)
+ * never block. Replayable from Settings.
  */
 @Composable
 fun OnboardingScreen(
@@ -73,68 +75,51 @@ fun OnboardingScreen(
     onSelectTheme: (AutoVerseThemeId) -> Unit,
     premiumUnlocked: Boolean,
     onUnlockPremium: () -> Unit,
-    mediaAccessGranted: Boolean,
-    onOpenMediaAccess: () -> Unit,
-    locationGranted: Boolean,
     onGetStarted: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalAutoVerseColors.current
-    val context = LocalContext.current
     var showPremiumDialog by remember { mutableStateOf(false) }
+    var setupStatus by remember { mutableStateOf<CarSetupStatus?>(null) }
 
-    var locationState by remember { mutableStateOf(locationGranted) }
-    val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions(),
-    ) { grants ->
-        locationState = grants[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
-            grants[Manifest.permission.ACCESS_COARSE_LOCATION] == true
-    }
-
-    val pagerState = rememberPagerState(pageCount = { 4 })
+    val pagerState = rememberPagerState(pageCount = { PAGE_COUNT })
     val scope = rememberCoroutineScope()
+    val page = pagerState.currentPage
+    val setupReady = setupStatus?.allRequiredGranted == true
+    val continueEnabled = page != PAGE_SETUP || setupReady
 
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(colors.backgroundBottom)
-            .padding(AutoVerseSpacing.lg),
+            .background(Brush.verticalGradient(listOf(colors.backgroundTop, colors.backgroundBottom)))
+            .windowInsetsPadding(WindowInsets.safeDrawing)
+            .padding(horizontal = AutoVerseSpacing.lg, vertical = AutoVerseSpacing.md),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            BrandPlate(logoHeight = 36.dp)
-            if (pagerState.currentPage != 3) {
-                TextAction(text = "Skip", onClick = onGetStarted)
-            }
+            BrandPlate(logoHeight = 32.dp)
+            StepIndicator(current = page)
         }
 
-        Spacer(Modifier.height(AutoVerseSpacing.lg))
+        Spacer(Modifier.height(AutoVerseSpacing.md))
 
-        HorizontalPager(state = pagerState, modifier = Modifier.weight(1f)) { page ->
-            when (page) {
-                0 -> WelcomePage()
-                1 -> ThemePage(
+        // Swiping is off so nobody slides past the setup gate; the buttons move pages.
+        HorizontalPager(
+            state = pagerState,
+            userScrollEnabled = false,
+            modifier = Modifier.weight(1f),
+        ) { index ->
+            when (index) {
+                PAGE_WELCOME -> WelcomePage()
+                PAGE_SETUP -> CarSetupPanel(onStatusChange = { setupStatus = it })
+                PAGE_THEME -> ThemePage(
                     selectedTheme = selectedTheme,
                     onSelectTheme = onSelectTheme,
                     premiumUnlocked = premiumUnlocked,
                     onLockedThemeTapped = { showPremiumDialog = true },
-                )
-                2 -> SetupPage(
-                    mediaAccessGranted = mediaAccessGranted,
-                    onOpenMediaAccess = onOpenMediaAccess,
-                    locationGranted = locationState,
-                    onRequestLocation = {
-                        permissionLauncher.launch(
-                            arrayOf(
-                                Manifest.permission.ACCESS_FINE_LOCATION,
-                                Manifest.permission.ACCESS_COARSE_LOCATION,
-                            ),
-                        )
-                    },
-                    onSetDefaultLauncher = { openHomeChooser(context) },
                 )
                 else -> FinishPage()
             }
@@ -142,40 +127,45 @@ fun OnboardingScreen(
 
         Spacer(Modifier.height(AutoVerseSpacing.md))
 
-        // Page indicator
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(AutoVerseSpacing.md),
         ) {
-            repeat(4) { index ->
-                val active = pagerState.currentPage == index
-                Box(
-                    modifier = Modifier
-                        .padding(horizontal = 4.dp)
-                        .size(if (active) 10.dp else 8.dp)
-                        .clip(CircleShape)
-                        .background(if (active) colors.accent else colors.outline),
+            if (page > PAGE_WELCOME) {
+                TextAction(
+                    text = "Back",
+                    onClick = { scope.launch { pagerState.animateScrollToPage(page - 1) } },
                 )
             }
-        }
-
-        Spacer(Modifier.height(AutoVerseSpacing.md))
-
-        PrimaryAction(
-            text = when (pagerState.currentPage) {
-                3 -> "Open the cockpit"
-                else -> "Continue"
-            },
-            onClick = {
-                when (pagerState.currentPage) {
-                    3 -> onGetStarted()
-                    else -> scope.launch {
-                        pagerState.animateScrollToPage(pagerState.currentPage + 1)
+            Text(
+                text = when {
+                    page == PAGE_SETUP && !setupReady ->
+                        "Finish the REQUIRED items to continue"
+                    else -> ""
+                },
+                style = MaterialTheme.typography.labelMedium,
+                color = colors.warning,
+                textAlign = TextAlign.End,
+                modifier = Modifier.weight(1f),
+            )
+            PrimaryAction(
+                text = when (page) {
+                    PAGE_WELCOME -> "Let's set up"
+                    PAGE_FINISH -> "Open the cockpit"
+                    else -> "Continue"
+                },
+                enabled = continueEnabled,
+                onClick = {
+                    if (page == PAGE_FINISH) {
+                        onGetStarted()
+                    } else {
+                        scope.launch { pagerState.animateScrollToPage(page + 1) }
                     }
-                }
-            },
-            modifier = Modifier.fillMaxWidth(),
-        )
+                },
+                modifier = Modifier.width(220.dp),
+            )
+        }
     }
 
     if (showPremiumDialog) {
@@ -200,19 +190,68 @@ private fun WelcomePage() {
         BrandPlate(logoHeight = 56.dp)
         Spacer(Modifier.height(AutoVerseSpacing.lg))
         Text(
-            "Your cockpit, your rules",
+            "Welcome to your cockpit",
             style = MaterialTheme.typography.headlineSmall,
             color = colors.textPrimary,
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(AutoVerseSpacing.sm))
         Text(
-            "A launcher built for the car: a live map, your music, GPS speed " +
-                "and every app one tap away \u2014 no account, nothing tracked.",
+            "Map, music, speed and car tools on one screen \u2014 made for driving. " +
+                "Setup takes about a minute.",
             style = MaterialTheme.typography.bodyMedium,
             color = colors.textSecondary,
             textAlign = TextAlign.Center,
         )
+        Spacer(Modifier.height(AutoVerseSpacing.lg))
+        Row(horizontalArrangement = Arrangement.spacedBy(AutoVerseSpacing.lg)) {
+            WelcomePoint(Icons.Outlined.LocationOn, "Live map")
+            WelcomePoint(Icons.Outlined.MusicNote, "Music control")
+            WelcomePoint(Icons.Outlined.Speed, "GPS speed")
+            WelcomePoint(Icons.Outlined.GraphicEq, "Car tools")
+        }
+    }
+}
+
+@Composable
+private fun WelcomePoint(icon: ImageVector, label: String) {
+    val colors = LocalAutoVerseColors.current
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            modifier = Modifier
+                .size(52.dp)
+                .clip(CircleShape)
+                .background(colors.surface),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(icon, contentDescription = null, tint = colors.accent, modifier = Modifier.size(26.dp))
+        }
+        Spacer(Modifier.height(AutoVerseSpacing.xs))
+        Text(label, style = MaterialTheme.typography.labelMedium, color = colors.textSecondary)
+    }
+}
+
+/** "Step 2 of 4 \u00b7 Car setup" \u2014 tells the driver how far along they are. */
+@Composable
+private fun StepIndicator(current: Int) {
+    val colors = LocalAutoVerseColors.current
+    val names = listOf("Welcome", "Car setup", "Theme", "Done")
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            "Step ${current + 1} of $PAGE_COUNT \u00b7 ${names[current]}",
+            style = MaterialTheme.typography.labelLarge,
+            color = colors.textSecondary,
+        )
+        Spacer(Modifier.width(AutoVerseSpacing.sm))
+        repeat(PAGE_COUNT) { index ->
+            Box(
+                modifier = Modifier
+                    .padding(horizontal = 3.dp)
+                    .size(width = if (index == current) 22.dp else 8.dp, height = 8.dp)
+                    .clip(CircleShape)
+                    .background(if (index <= current) colors.accent else colors.outline),
+            )
+        }
     }
 }
 
@@ -328,79 +367,6 @@ private fun ThemeSwatch(
 }
 
 @Composable
-private fun SetupPage(
-    mediaAccessGranted: Boolean,
-    onOpenMediaAccess: () -> Unit,
-    locationGranted: Boolean,
-    onRequestLocation: () -> Unit,
-    onSetDefaultLauncher: () -> Unit,
-) {
-    val colors = LocalAutoVerseColors.current
-    Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(AutoVerseSpacing.sm)) {
-        Text("Connect your car", style = MaterialTheme.typography.headlineSmall, color = colors.textPrimary)
-        Spacer(Modifier.height(AutoVerseSpacing.xs))
-        SetupRow(
-            icon = { Icon(Icons.Outlined.Home, contentDescription = null, tint = colors.accent) },
-            title = "Make AutoVerse the launcher",
-            detail = "Opens the Android home-app picker. You stay in control.",
-            actionText = "Choose",
-            onAction = onSetDefaultLauncher,
-        )
-        SetupRow(
-            icon = { Icon(Icons.Outlined.MusicNote, contentDescription = null, tint = colors.accent) },
-            title = "Media session access",
-            detail = if (mediaAccessGranted) "Granted \u2014 the dashboard reads now-playing." else "Needed to show Spotify / YT Music on the dashboard.",
-            actionText = if (mediaAccessGranted) "Granted" else "Grant",
-            onAction = onOpenMediaAccess,
-            positive = mediaAccessGranted,
-        )
-        SetupRow(
-            icon = { Icon(Icons.Outlined.LocationOn, contentDescription = null, tint = colors.accent) },
-            title = "Location (cockpit GPS)",
-            detail = if (locationGranted) "Granted \u2014 live map position and speed." else "Powers the live map, recenter and speed readout.",
-            actionText = if (locationGranted) "Granted" else "Grant",
-            onAction = onRequestLocation,
-            positive = locationGranted,
-        )
-    }
-}
-
-@Composable
-private fun SetupRow(
-    icon: @Composable () -> Unit,
-    title: String,
-    detail: String,
-    actionText: String,
-    onAction: () -> Unit,
-    positive: Boolean = false,
-) {
-    val colors = LocalAutoVerseColors.current
-    Surface(
-        shape = AutoVerseShapes.small,
-        color = colors.surface,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Row(
-            modifier = Modifier.padding(AutoVerseSpacing.md),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            icon()
-            Spacer(Modifier.width(AutoVerseSpacing.sm))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.titleSmall, color = colors.textPrimary)
-                Text(detail, style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
-            }
-            Spacer(Modifier.width(AutoVerseSpacing.sm))
-            TextAction(
-                text = actionText,
-                onClick = onAction,
-                enabled = !positive,
-            )
-        }
-    }
-}
-
-@Composable
 private fun FinishPage() {
     val colors = LocalAutoVerseColors.current
     Column(
@@ -417,13 +383,5 @@ private fun FinishPage() {
             color = colors.textSecondary,
             textAlign = TextAlign.Center,
         )
-    }
-}
-
-private fun openHomeChooser(context: Context) {
-    try {
-        val home = Intent(Intent.ACTION_MAIN).apply { addCategory(Intent.CATEGORY_HOME) }
-        context.startActivity(Intent.createChooser(home, "Set AutoVerse as your launcher"))
-    } catch (_: Exception) {
     }
 }

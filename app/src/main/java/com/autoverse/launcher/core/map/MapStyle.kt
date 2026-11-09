@@ -20,7 +20,34 @@ object MapStyle {
     const val FOLLOW_ZOOM = 16.0
 
     /** Overview zoom shown before the first fix (country scale, no fake position). */
-    const val NO_FIX_ZOOM = 3.0
+    const val NO_FIX_ZOOM = 4.0
+
+    /**
+     * Where the camera starts when the unit has never had a fix: the middle of
+     * India (the launch market), at country zoom — never 0,0 in the ocean.
+     */
+    const val DEFAULT_CENTER_LAT = 22.5
+    const val DEFAULT_CENTER_LNG = 79.0
+
+    /** Zoom used when reopening at the last remembered car position. */
+    const val REMEMBERED_ZOOM = 14.0
+
+    /** The remembered position is written at most this often (cheap prefs write). */
+    const val REMEMBER_POSITION_EVERY_MS = 30_000L
+
+    /**
+     * Start camera: the last remembered car position when there is one,
+     * otherwise the India overview. Pure for JVM tests.
+     */
+    fun startCamera(rememberedLat: Double?, rememberedLng: Double?): Triple<Double, Double, Double> =
+        if (rememberedLat != null && rememberedLng != null &&
+            rememberedLat in -90.0..90.0 && rememberedLng in -180.0..180.0 &&
+            !(rememberedLat == 0.0 && rememberedLng == 0.0)
+        ) {
+            Triple(rememberedLat, rememberedLng, REMEMBERED_ZOOM)
+        } else {
+            Triple(DEFAULT_CENTER_LAT, DEFAULT_CENTER_LNG, NO_FIX_ZOOM)
+        }
 
     /**
      * Ambient tile cache. Tiles already seen render instantly and survive

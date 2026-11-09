@@ -74,6 +74,9 @@ const val SPEED_STALE_AFTER_MS = 5_000L
 /** GPS update interval: once a second is plenty for a speed readout. */
 const val SPEED_UPDATE_INTERVAL_MS = 1_000L
 
+/** Network position refresh while GPS has no fix; slow, it only seeds the map. */
+const val NETWORK_UPDATE_INTERVAL_MS = 10_000L
+
 /** Fixes reporting worse accuracy than this never set the speed. */
 const val SPEED_MAX_ACCURACY_M = 60f
 
@@ -153,6 +156,30 @@ class SpeedometerManager(private val context: Context) {
         @Deprecated("Deprecated in Java")
         override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
     }
+
+    /**
+     * Network (Wi-Fi / cell) fixes: a city-accurate position within seconds
+     * while the head unit's GPS antenna is still acquiring satellites, so the
+     * map and weather are right immediately. They only ever set the position,
+     * never the speed, and are ignored once real GPS is live.
+     */
+    private val networkListener = object : LocationListener {
+        override fun onLocationChanged(location: Location) {
+            if (_speedometerData.value.gpsStatus != GpsStatus.LIVE) applyFix(location, isLive = false)
+        }
+
+        override fun onProviderEnabled(provider: String) {
+            if (_speedometerData.value.gpsStatus == GpsStatus.PROVIDER_OFF) setStatus(GpsStatus.WAITING)
+        }
+
+        override fun onProviderDisabled(provider: String) {
+            if (!anyProviderEnabled()) setStatus(GpsStatus.PROVIDER_OFF)
+        }
+
+        @Deprecated("Deprecated in Java")
+        override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
+    }
+    private var networkListening = false
 
     private fun applyFix(location: Location, isLive: Boolean) {
         val nowMs = SystemClock.elapsedRealtime()
@@ -237,6 +264,21 @@ class SpeedometerManager(private val context: Context) {
             isListening = true
             setStatus(if (anyProviderEnabled()) GpsStatus.WAITING else GpsStatus.PROVIDER_OFF)
 
+            if (provider == LocationManager.GPS_PROVIDER && LocationManager.NETWORK_PROVIDER in providers) {
+                try {
+                    locationManager.requestLocationUpdates(
+                        LocationManager.NETWORK_PROVIDER,
+                        NETWORK_UPDATE_INTERVAL_MS,
+                        0f,
+                        networkListener,
+                        Looper.getMainLooper(),
+                    )
+                    networkListening = true
+                } catch (_: Exception) {
+                    // Approximate-only grant or no network provider: GPS alone is fine.
+                }
+            }
+
             // A cached fix seeds the position (weather) immediately; it only
             // counts as a live speed when it is genuinely fresh.
             val lastKnown = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
@@ -257,7 +299,9 @@ class SpeedometerManager(private val context: Context) {
         if (!isListening || locationManager == null) return
         try {
             locationManager.removeUpdates(locationListener)
+            if (networkListening) locationManager.removeUpdates(networkListener)
         } catch (_: SecurityException) {}
+        networkListening = false
         isListening = false
         setStatus(GpsStatus.WAITING)
 

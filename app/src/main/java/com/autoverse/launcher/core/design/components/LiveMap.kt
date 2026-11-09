@@ -3,11 +3,22 @@ package com.autoverse.launcher.core.design.components
 import android.view.ViewGroup
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.LocationOff
 import androidx.compose.material.icons.outlined.MyLocation
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.text.style.TextAlign
+import com.autoverse.launcher.core.permissions.LocationFix
+import com.autoverse.launcher.core.permissions.locationFixFor
+import com.autoverse.launcher.core.permissions.openAppPermissionSettings
+import com.autoverse.launcher.core.permissions.openLocationServiceSettings
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -119,8 +130,12 @@ fun LiveMap(
             LaunchedEffect(host, night) { host.setNight(night) }
             LaunchedEffect(host, maxFps) { host.setMaxFps(maxFps) }
             LaunchedEffect(host, lite) { host.setLite(lite) }
-            LaunchedEffect(host, speedometerData.fixElapsedMs, speedometerData.gpsStatus) {
-                if (speedometerData.gpsStatus == GpsStatus.LIVE) host.updateLocation(speedometerData)
+            // Any known position moves the map — a cached or network fix puts the
+            // car in the right city at once; live GPS then takes over smoothly.
+            LaunchedEffect(host, speedometerData.fixElapsedMs, speedometerData.latitude, speedometerData.longitude) {
+                if (speedometerData.latitude != null && speedometerData.longitude != null) {
+                    host.updateLocation(speedometerData)
+                }
             }
             AndroidView(
                 modifier = Modifier.fillMaxSize(),
@@ -134,17 +149,35 @@ fun LiveMap(
         }
 
         val engine = LocalMapEngineState.current
-        val note = when {
-            host == null && engine == MapEngineState.UNAVAILABLE -> "Map unavailable on this device"
-            host == null -> null
-            !hasLocationPermission -> "No location access"
-            speedometerData.gpsStatus == GpsStatus.PROVIDER_OFF -> "Location is switched off"
-            speedometerData.gpsStatus == GpsStatus.STALE -> "GPS signal lost"
-            speedometerData.latitude == null -> "Waiting for GPS…"
-            else -> null
-        }
-        if (note != null) {
-            MapOverlayText(text = note, modifier = Modifier.align(Alignment.TopStart))
+        val context = LocalContext.current
+        val fix = locationFixFor(
+            hasPermission = hasLocationPermission && speedometerData.gpsStatus != GpsStatus.NO_ACCESS,
+            serviceOn = speedometerData.gpsStatus != GpsStatus.PROVIDER_OFF,
+        )
+        if (host != null && fix != null) {
+            // A problem the driver can fix gets a big, tappable card — not a faint label.
+            LocationFixCard(
+                fix = fix,
+                onFix = {
+                    when (fix) {
+                        LocationFix.GRANT -> openAppPermissionSettings(context)
+                        LocationFix.TURN_ON -> openLocationServiceSettings(context)
+                    }
+                },
+                modifier = Modifier.align(Alignment.Center),
+            )
+        } else {
+            val note = when {
+                host == null && engine == MapEngineState.UNAVAILABLE -> "Map unavailable on this device"
+                host == null -> null
+                speedometerData.gpsStatus == GpsStatus.STALE -> "GPS signal lost — showing last position"
+                speedometerData.latitude == null -> "Finding your location…"
+                speedometerData.gpsStatus != GpsStatus.LIVE -> "Approximate position — waiting for GPS"
+                else -> null
+            }
+            if (note != null) {
+                MapOverlayText(text = note, modifier = Modifier.align(Alignment.TopStart))
+            }
         }
         if (host != null && host.trackingDismissed) {
             TransportButton(
@@ -162,6 +195,40 @@ fun LiveMap(
             modifier = Modifier.align(Alignment.BottomEnd),
             small = true,
         )
+    }
+}
+
+/** Centered card over the map: what's wrong, and one button that fixes it. */
+@Composable
+fun LocationFixCard(
+    fix: LocationFix,
+    onFix: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = LocalAutoVerseColors.current
+    Column(
+        modifier = modifier
+            .padding(AutoVerseSpacing.md)
+            .clip(AutoVerseShapes.small)
+            .background(colors.surface.copy(alpha = 0.94f))
+            .padding(AutoVerseSpacing.md),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.LocationOff,
+            contentDescription = null,
+            tint = colors.warning,
+            modifier = Modifier.size(32.dp),
+        )
+        Spacer(Modifier.height(AutoVerseSpacing.xs))
+        Text(
+            text = fix.explanation,
+            style = MaterialTheme.typography.titleSmall,
+            color = colors.textPrimary,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(AutoVerseSpacing.sm))
+        PrimaryAction(text = fix.label, onClick = onFix)
     }
 }
 

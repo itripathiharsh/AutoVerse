@@ -46,6 +46,8 @@ class LiveMapHost(
 ) : DefaultLifecycleObserver {
 
     private val appContext = context.applicationContext
+    private val prefs = appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    private var lastRememberedMs = 0L
     private val frames = MapFrameAccumulator()
     private var map: MapLibreMap? = null
     private var loadedStyleUrl: String? = null
@@ -92,9 +94,14 @@ class LiveMapHost(
                 setLogoEnabled(false)
                 setAttributionEnabled(false)
             }
+            // Last remembered car position, else an India overview — never 0,0.
+            val (lat, lng, zoom) = MapStyle.startCamera(
+                prefs.getString(KEY_LAT, null)?.toDoubleOrNull(),
+                prefs.getString(KEY_LNG, null)?.toDoubleOrNull(),
+            )
             readyMap.cameraPosition = CameraPosition.Builder()
-                .target(LatLng(0.0, 0.0))
-                .zoom(MapStyle.NO_FIX_ZOOM)
+                .target(LatLng(lat, lng))
+                .zoom(zoom)
                 .build()
             requestedStyleUrl?.let(::loadStyle)
         }
@@ -200,6 +207,7 @@ class LiveMapHost(
         val firstFix = lastPushed == null
         component.forceLocationUpdate(location)
         lastPushed = location
+        rememberPosition(location)
         if (!trackingDismissed) {
             val wanted = cameraModeFor(speedKmh)
             if (component.cameraMode != wanted) component.cameraMode = wanted
@@ -207,6 +215,17 @@ class LiveMapHost(
             component.renderMode = if (moving) RenderMode.GPS else RenderMode.NORMAL
         }
         if (firstFix) component.zoomWhileTracking(MapStyle.FOLLOW_ZOOM)
+    }
+
+    /** Keeps the car's position (on this unit only) so the next start opens there. */
+    private fun rememberPosition(location: Location) {
+        val now = SystemClock.elapsedRealtime()
+        if (lastRememberedMs != 0L && now - lastRememberedMs < MapStyle.REMEMBER_POSITION_EVERY_MS) return
+        lastRememberedMs = now
+        prefs.edit()
+            .putString(KEY_LAT, location.latitude.toString())
+            .putString(KEY_LNG, location.longitude.toString())
+            .apply()
     }
 
     private fun activeComponent(): LocationComponent? {
@@ -264,6 +283,10 @@ fun bearingDelta(a: Float, b: Float): Float {
     val d = kotlin.math.abs(a - b) % 360f
     return if (d > 180f) 360f - d else d
 }
+
+private const val PREFS = "autoverse_map"
+private const val KEY_LAT = "last_lat"
+private const val KEY_LNG = "last_lng"
 
 const val MIN_MOVE_METERS = 1.5f
 const val MIN_BEARING_CHANGE_DEG = 3f
