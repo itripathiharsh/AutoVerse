@@ -146,20 +146,10 @@ fun AppNavigationRail(
     }
 }
 
-/**
- * Small brand mark at the top of the rail — the logo only, no wordmark. The
- * plate keeps the brand's own charcoal so the chrome half of the mark stays
- * legible in every theme.
- */
+/** Small transparent brand mark at the top of the rail — the logo only, no wordmark. */
 @Composable
 private fun BrandMark() {
-    Image(
-        painter = painterResource(R.drawable.autoverse_brand_mark),
-        contentDescription = "AutoVerse",
-        modifier = Modifier
-            .padding(top = AutoVerseSpacing.xxs)
-            .size(28.dp),
-    )
+    BrandMark(height = 20.dp, modifier = Modifier.padding(top = AutoVerseSpacing.xxs))
 }
 
 @Composable

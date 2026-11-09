@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="obsidian_background">#FF0A0D12</color>
-    <color name="ic_launcher_background">#FF000208</color>
+    <!-- Transparent: the app icon is the infinity mark alone, no black tile. -->
+    <color name="ic_launcher_background">#00000000</color>
 </resources>
