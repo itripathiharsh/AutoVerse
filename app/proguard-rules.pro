@@ -12,6 +12,11 @@
 -dontwarn org.bouncycastle.**
 -dontwarn org.openjsse.**
 
+# BRouter (on-device routing) instantiates its path models by class name
+# (RoutingContext -> Class.forName). The engine is ~100 small classes.
+-keep class btools.** { *; }
+-dontwarn btools.**
+
 # Shizuku user service is instantiated reflectively by the Shizuku server;
 # the AIDL stub must survive too.
 -keep class com.autoverse.launcher.core.mapdisplay.** { *; }

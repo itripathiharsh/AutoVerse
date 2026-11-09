@@ -14,6 +14,15 @@ changed in Phase 12, so the table below stands as verified.
 > Leaflet (WebView cockpit deleted), Vosk and JNA (voice removed). Kotlin
 > stdlib 2.2.21. The tables below predate this update.
 
+> **1.2.0 update (2026-11-09):** added **BRouter 1.7.10** routing engine
+> (MIT, © 2019 BRouter contributors, https://github.com/abrensch/brouter) —
+> source vendored unmodified in the `:brouter` module with its `LICENSE`; the
+> car profile and lookup table in `app/src/main/assets/brouter/` come from the
+> same release (profile changed only to `turnInstructionMode = 9`). Road data
+> (`.rd5` from brouter.de) and place search (Photon, Apache-2.0 server by
+> komoot) are © OpenStreetMap contributors (ODbL): attribution is shown on the
+> map. The MIT notice must be included in Settings → Licenses.
+
 ## Shipped dependencies and licenses
 
 ### First-level runtime dependencies

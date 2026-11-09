@@ -1260,7 +1260,18 @@ private fun AboutSettings(onReplayOnboarding: () -> Unit) {
         )
         Spacer(Modifier.height(AutoVerseSpacing.xs))
         Text(
-            text = "Map data \u00a9 OpenStreetMap contributors (ODbL), tiles by " +
+            text = "BRouter (on-device routing) \u2014 Copyright (c) 2019 BRouter " +
+                "contributors, MIT License. Permission is hereby granted, free of " +
+                "charge, to deal in the software without restriction, provided this " +
+                "notice is included; the software is provided \u201cas is\u201d, without " +
+                "warranty of any kind.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = colors.textFaint,
+        )
+        Spacer(Modifier.height(AutoVerseSpacing.xs))
+        Text(
+            text = "Map, road and search data \u00a9 OpenStreetMap contributors (ODbL); " +
+                "place search by Photon (komoot). Map tiles by " +
                 "OpenFreeMap and OpenMapTiles. Kotlin, AndroidX, Jetpack Compose, " +
                 "OkHttp, Okio, Timber and Shizuku API ship under Apache-2.0; " +
                 "desugar_jdk_libs under GPL-2.0 with the Classpath exception.",
@@ -1282,9 +1293,10 @@ private fun AboutSettings(onReplayOnboarding: () -> Unit) {
         )
         Spacer(Modifier.height(AutoVerseSpacing.xs))
         Text(
-            text = "The network is used for map tiles (OpenFreeMap), weather " +
-                "(Open-Meteo, location rounded to ~1 km) and album artwork your " +
-                "music app provides.",
+            text = "The network is used for map tiles (OpenFreeMap), weather and " +
+                "place search (Open-Meteo, Photon — location rounded to ~1 km), " +
+                "one-time road-data downloads for navigation (BRouter) and album " +
+                "artwork your music app provides. Routes are calculated on this unit.",
             style = MaterialTheme.typography.bodyMedium,
             color = colors.textFaint,
         )

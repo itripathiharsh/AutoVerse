@@ -41,10 +41,14 @@ follows the car heading-up above 8 km/h; movement from 1 Hz GPS is
 interpolated; frame cap 30 fps on the Constrained profile with a lite style;
 200 MB tile cache for offline reuse; Diagnostics shows measured fps.
 
-**Navigation** — "Open Google Maps" and typed destinations hand off to Google
-Maps (or Waze / the user's map app) with tap-time install checks and an honest
-"didn't come to the front" message when Android does not show the app.
-Recent and saved destinations.
+**Navigation (in AutoVerse)** — search any place in India, see the route
+on AutoVerse's own map, and drive with turn-by-turn guidance: next-turn
+banner, "then" hint, arrival time, spoken instructions (Android TTS, muteable)
+and automatic rerouting. Routes are calculated **on the head unit** by the
+embedded BRouter engine (MIT) — no routing server, no per-route cost, works in
+network dead zones. Road data for an area (15–60 MB per 5°×5° region) is
+downloaded once, automatically, the first time you navigate there. Place
+search uses Photon (OpenStreetMap). Google Maps remains an optional fallback.
 
 **Apps** — All Apps (~70%) with search and categories; Recently Used (~30%,
 AutoVerse's own launch history), collapsible and clearable.

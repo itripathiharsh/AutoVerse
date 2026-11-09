@@ -1,6 +1,6 @@
 # AutoVerse — Privacy Policy
 
-_Last updated: 27 October 2026 · Applies to AutoVerse 1.0.0 and later_
+_Last updated: 9 November 2026 · Applies to AutoVerse 1.2.0 and later_
 
 AutoVerse is a car launcher for Android. It is built to work without an
 account and without tracking. **We (the developer) do not collect, store,
@@ -18,6 +18,8 @@ leaves your device, and why.
 | **List of installed apps** | Showing and launching your apps | Stays on the device |
 | **Apps you open from AutoVerse** (recently used) | The "Recently Used" list | Stored only on the device; you can clear it anytime (Apps → Recently Used → Clear) |
 | **Destinations you navigate to / save** | Recent and saved destinations | Stored only on the device; clear or remove them anytime (Maps → Destinations) |
+| **Your routes** (start, destination, the route line, turn-by-turn progress) | In-app navigation | Calculated on the device by the built-in routing engine. Never sent anywhere |
+| **Last car position** | Opening the map where the car is | Stored only on the device |
 | **Now-playing media** (title, artist, artwork, queue) — requires the "notification access" you grant | Music controls on Home | Read on the device only. Notifications themselves are never read, stored or sent |
 | **Phone call state** (ringing / in call, and the caller number only if Android provides it) — optional, only if you enable "Show incoming calls here" | Temporarily showing the call on Home | Stays on the device, never stored |
 | **Bluetooth OBD-II adapter data** (speed, RPM, temperatures, fault codes) — only if you connect an adapter | The OBD screen | Stays on the device |
@@ -38,20 +40,30 @@ never see this traffic.
    places). Your exact position is never sent.
 3. **Album artwork.** If a music app provides an artwork web address,
    AutoVerse downloads that image from the address the music app supplied.
-4. **Navigation apps.** When you tap Navigate or Open Google Maps, AutoVerse
-   passes the destination you typed (or chose) to the navigation app on your
-   device (Google Maps, Waze, or another app you picked). That app's own
-   privacy policy applies from then on.
+4. **Place search — Photon by komoot (photon.komoot.io).** When you type a
+   destination, AutoVerse sends the text you typed and your location
+   **rounded to about 1 km** (so nearby places come first). Your exact
+   position is never sent. Search data © OpenStreetMap contributors.
+5. **Road data for navigation — BRouter (brouter.de).** The first time you
+   navigate in an area, AutoVerse downloads that area's road data (a 5°×5°
+   region file). The server sees your IP address and which region file was
+   requested — never your position, route or destination. Routes are then
+   calculated on the device.
+6. **Navigation apps (optional).** If you choose "Google Maps" or "Open Google
+   Maps", AutoVerse passes the destination to that app on your device. That
+   app's own privacy policy applies from then on.
 
 ## Permissions
 
-All permissions are optional; AutoVerse keeps working with whatever you allow.
+At first setup AutoVerse asks for **precise location** (with the GPS switched
+on) and **notification access for music**, because the map, speed, navigation
+and music features cannot work without them. Everything else is optional.
 
-- **Location** — speed, live-map position, weather.
+- **Location** — speed, live-map position, navigation, weather.
 - **Notification access** (media) — music controls only.
 - **Phone state** — only for the optional incoming-call panel.
 - **Bluetooth connect** — only for an OBD-II adapter you choose to connect.
-- **Internet / network state** — map tiles, weather, artwork; network status icons.
+- **Internet / network state** — map tiles, weather, place search, road-data downloads, artwork; network status icons.
 
 ## Children
 

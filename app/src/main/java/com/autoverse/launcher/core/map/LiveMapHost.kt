@@ -2,7 +2,16 @@ package com.autoverse.launcher.core.map
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.graphics.Color
 import android.location.Location
+import org.maplibre.android.camera.CameraUpdateFactory
+import org.maplibre.android.geometry.LatLngBounds
+import org.maplibre.android.location.LocationComponentConstants
+import org.maplibre.android.style.layers.CircleLayer
+import org.maplibre.android.style.layers.LineLayer
+import org.maplibre.android.style.sources.GeoJsonSource
+import org.maplibre.geojson.LineString
+import org.maplibre.geojson.Point
 import android.os.SystemClock
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -171,7 +180,90 @@ class LiveMapHost(
             applyLite(style)
             styleReady = true
             activateLocation(readyMap, style)
+            applyRoute(style) // a day/night switch reloads the style; keep the route
         }
+    }
+
+    // ---- route line (in-app navigation) -------------------------------------
+
+    private var routeLine: List<LatLng>? = null
+    private var destination: LatLng? = null
+
+    /** Shows (or with null, clears) the route polyline and destination pin. */
+    fun setRoute(points: List<LatLng>?) {
+        routeLine = points?.takeIf { it.size >= 2 }
+        destination = routeLine?.last()
+        map?.style?.takeIf { styleReady }?.let(::applyRoute)
+    }
+
+    private fun applyRoute(style: Style) {
+        val line = routeLine
+        val lineGeo = line?.let {
+            LineString.fromLngLats(it.map { p -> Point.fromLngLat(p.longitude, p.latitude) })
+        }
+        val pinGeo = destination?.let { Point.fromLngLat(it.longitude, it.latitude) }
+
+        val lineSource = style.getSourceAs<GeoJsonSource>(ROUTE_SOURCE)
+        if (lineSource == null) {
+            if (lineGeo == null) return
+            style.addSource(GeoJsonSource(ROUTE_SOURCE, lineGeo))
+            style.addSource(
+                if (pinGeo != null) GeoJsonSource(DEST_SOURCE, pinGeo) else GeoJsonSource(DEST_SOURCE),
+            )
+            val casing = LineLayer(ROUTE_CASING_LAYER, ROUTE_SOURCE).withProperties(
+                PropertyFactory.lineColor(Color.parseColor("#0B3D91")),
+                PropertyFactory.lineWidth(11f),
+                PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
+                PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
+            )
+            val route = LineLayer(ROUTE_LAYER, ROUTE_SOURCE).withProperties(
+                PropertyFactory.lineColor(Color.parseColor("#2F7BFF")),
+                PropertyFactory.lineWidth(7f),
+                PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
+                PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
+            )
+            val pin = CircleLayer(DEST_LAYER, DEST_SOURCE).withProperties(
+                PropertyFactory.circleRadius(9f),
+                PropertyFactory.circleColor(Color.parseColor("#E53935")),
+                PropertyFactory.circleStrokeColor(Color.WHITE),
+                PropertyFactory.circleStrokeWidth(3f),
+            )
+            // Under the car puck, above the roads.
+            val below = LocationComponentConstants.SHADOW_LAYER
+            if (style.getLayer(below) != null) {
+                style.addLayerBelow(casing, below)
+                style.addLayerBelow(route, below)
+                style.addLayerBelow(pin, below)
+            } else {
+                style.addLayer(casing)
+                style.addLayer(route)
+                style.addLayer(pin)
+            }
+        } else {
+            val empty = org.maplibre.geojson.FeatureCollection.fromFeatures(emptyList<org.maplibre.geojson.Feature>())
+            if (lineGeo != null) lineSource.setGeoJson(lineGeo) else lineSource.setGeoJson(empty)
+            style.getSourceAs<GeoJsonSource>(DEST_SOURCE)?.let { pinSource ->
+                if (pinGeo != null) pinSource.setGeoJson(pinGeo) else pinSource.setGeoJson(empty)
+            }
+        }
+    }
+
+    /** Frames the whole route (preview); the user can recenter afterwards. */
+    fun showOverview(points: List<LatLng>, paddingPx: Int) {
+        val readyMap = map ?: return
+        if (points.size < 2) return
+        activeComponent()?.cameraMode = CameraMode.NONE
+        trackingDismissed = true
+        val bounds = LatLngBounds.Builder().includes(points).build()
+        readyMap.easeCamera(CameraUpdateFactory.newLatLngBounds(bounds, paddingPx), 600)
+    }
+
+    /** Driving view for turn-by-turn: heading-up, close zoom, following the car. */
+    fun followForGuidance() {
+        val component = activeComponent() ?: return
+        component.cameraMode = CameraMode.TRACKING_GPS
+        component.zoomWhileTracking(MapStyle.GUIDANCE_ZOOM)
+        trackingDismissed = false
     }
 
     @SuppressLint("MissingPermission") // fed by AutoVerse's own permission-checked GPS; no engine here
@@ -283,6 +375,12 @@ fun bearingDelta(a: Float, b: Float): Float {
     val d = kotlin.math.abs(a - b) % 360f
     return if (d > 180f) 360f - d else d
 }
+
+private const val ROUTE_SOURCE = "autoverse-route"
+private const val DEST_SOURCE = "autoverse-destination"
+private const val ROUTE_LAYER = "autoverse-route-line"
+private const val ROUTE_CASING_LAYER = "autoverse-route-casing"
+private const val DEST_LAYER = "autoverse-destination-pin"
 
 private const val PREFS = "autoverse_map"
 private const val KEY_LAT = "last_lat"

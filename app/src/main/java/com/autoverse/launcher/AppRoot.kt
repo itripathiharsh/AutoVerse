@@ -59,6 +59,8 @@ import com.autoverse.launcher.feature.obd.ObdDiagnosticsScreen
 import com.autoverse.launcher.feature.probe.MapDisplayProbeScreen
 import com.autoverse.launcher.feature.probe.MapEmbedProbeScreen
 import com.autoverse.launcher.core.permissions.CarSetupStatus
+import com.autoverse.launcher.core.routing.InAppNavigationController
+import com.autoverse.launcher.core.routing.LocalInAppNavigation
 import com.autoverse.launcher.feature.onboarding.FinishSetupScreen
 import com.autoverse.launcher.feature.onboarding.OnboardingScreen
 import com.autoverse.launcher.feature.settings.SettingsCategory
@@ -70,7 +72,10 @@ import kotlinx.coroutines.launch
 enum class Screen { HOME, NAVIGATION, APP_DRAWER, SPEEDOMETER, OBD, SETTINGS, DIAGNOSTICS, MAP_PROBE, MAP_DISPLAY_PROBE }
 
 @Composable
-fun AppRoot(viewModel: MainViewModel = viewModel()) {
+fun AppRoot(
+    viewModel: MainViewModel = viewModel(),
+    navigation: InAppNavigationController = viewModel(),
+) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val performanceSpec by viewModel.performanceSpec.collectAsStateWithLifecycle()
     val frameSnapshot by viewModel.frameSnapshot.collectAsStateWithLifecycle()
@@ -98,6 +103,9 @@ fun AppRoot(viewModel: MainViewModel = viewModel()) {
     val recentApps by viewModel.recentApps.collectAsStateWithLifecycle()
     val callState by viewModel.callState.collectAsStateWithLifecycle()
     val mapsStatus by viewModel.mapsStatus.collectAsStateWithLifecycle()
+
+    // Every GPS fix also drives in-app navigation (progress, voice, rerouting).
+    LaunchedEffect(navigation, speedometerData) { navigation.onLocation(speedometerData) }
 
     var screen by rememberSaveable { mutableStateOf(Screen.HOME) }
     var drawerQuery by rememberSaveable { mutableStateOf("") }
@@ -293,6 +301,7 @@ fun AppRoot(viewModel: MainViewModel = viewModel()) {
             LocalLiveMapHost provides liveMapHost,
             LocalMapEngineState provides mapEngineState,
             LocalPerformanceSpec provides performanceSpec,
+            LocalInAppNavigation provides navigation,
             LocalDensity provides Density(
                 density = baseDensity.density,
                 fontScale = baseDensity.fontScale * settings.textScale,

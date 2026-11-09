@@ -2,6 +2,9 @@ package com.autoverse.launcher.core.design.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import com.autoverse.launcher.core.routing.LocalInAppNavigation
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -66,6 +69,48 @@ fun MapsLaunchPanel(
     val colors = LocalAutoVerseColors.current
     val parseResult = remember(destinationQuery) { parseNavigationDestination(destinationQuery) }
     val mapsMissing = mapsStatus == MapsStatus.NOT_INSTALLED
+
+    // In-app turn-by-turn (on-device routing) whenever the app root provides it;
+    // previews and tests fall through to the hand-off layout below.
+    val navigation = LocalInAppNavigation.current
+    if (navigation != null) {
+        CockpitCard(
+            modifier = modifier,
+            contentPadding = PaddingValues(AutoVerseSpacing.md),
+        ) {
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                SectionLabel(icon = Icons.Outlined.Map, label = "MAP", modifier = Modifier.weight(1f))
+                StatusChip(label = "Navigation in AutoVerse", tone = StatusTone.SUCCESS, leadingDot = true)
+            }
+            Spacer(Modifier.size(AutoVerseSpacing.xs))
+            InAppNavigationMapSync(navigation)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .heightIn(min = 140.dp),
+            ) {
+                LiveMap(
+                    speedometerData = speedometerData,
+                    hasLocationPermission = hasLocationPermission,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                InAppNavigationOverlay(
+                    controller = navigation,
+                    onOpenInGoogleMaps = { place ->
+                        onNavigate(NavigationDestination.Coordinates(place.latitude, place.longitude))
+                    },
+                    compact = compact,
+                )
+            }
+            InAppNavigationSearchRow(
+                controller = navigation,
+                onOpenGoogleMaps = onOpenMaps,
+                showRecents = !compact,
+            )
+        }
+        return
+    }
 
     CockpitCard(
         modifier = modifier,

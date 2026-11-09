@@ -29,6 +29,9 @@ object MapStyle {
     const val DEFAULT_CENTER_LAT = 22.5
     const val DEFAULT_CENTER_LNG = 79.0
 
+    /** Closer, heading-up zoom while turn-by-turn guidance runs. */
+    const val GUIDANCE_ZOOM = 16.5
+
     /** Zoom used when reopening at the last remembered car position. */
     const val REMEMBERED_ZOOM = 14.0
 
