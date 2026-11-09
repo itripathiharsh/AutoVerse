@@ -79,10 +79,20 @@ fun isLocationServiceOn(context: Context): Boolean {
     }
 }
 
+/**
+ * Whether AutoVerse is the default Home app. Android 10+ answers this exactly
+ * through the HOME role; a package-manager lookup would wrongly say yes on
+ * Android 11+, where other launchers are invisible to AutoVerse.
+ */
 fun isDefaultLauncher(context: Context): Boolean = try {
-    val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
-    val resolved = context.packageManager.resolveActivity(home, PackageManager.MATCH_DEFAULT_ONLY)
-    resolved?.activityInfo?.packageName == context.packageName
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        val roles = context.getSystemService(android.app.role.RoleManager::class.java)
+        roles?.isRoleHeld(android.app.role.RoleManager.ROLE_HOME) == true
+    } else {
+        val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+        val resolved = context.packageManager.resolveActivity(home, PackageManager.MATCH_DEFAULT_ONLY)
+        resolved?.activityInfo?.packageName == context.packageName
+    }
 } catch (_: Exception) {
     false
 }
@@ -120,6 +130,18 @@ fun openAppPermissionSettings(context: Context): Boolean = openFirst(
 /** The notification-access list where "AutoVerse" is switched on for music control. */
 fun openMediaAccessSettings(context: Context): Boolean = openFirst(
     context,
+    // Android 11+: straight to AutoVerse's own switch (one tap fewer).
+    *listOfNotNull(
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            Intent(Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS).putExtra(
+                Settings.EXTRA_NOTIFICATION_LISTENER_COMPONENT_NAME,
+                android.content.ComponentName(
+                    context,
+                    com.autoverse.launcher.core.media.AutoVerseMediaListenerService::class.java,
+                ).flattenToString(),
+            )
+        } else null,
+    ).toTypedArray(),
     notificationAccessSettingsIntent(),
     Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null)),
 )

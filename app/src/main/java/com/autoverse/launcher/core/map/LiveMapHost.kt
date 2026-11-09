@@ -164,12 +164,7 @@ class LiveMapHost(
     }
 
     /** Re-engages follow mode after the user panned or zoomed away. */
-    fun recenter() {
-        val component = activeComponent() ?: return
-        component.cameraMode = cameraModeFor(lastPushed?.speed?.times(3.6f)?.toInt())
-        component.zoomWhileTracking(MapStyle.FOLLOW_ZOOM)
-        trackingDismissed = false
-    }
+    fun recenter() = followCar()
 
     private fun loadStyle(url: String) {
         val readyMap = map ?: return
@@ -248,22 +243,39 @@ class LiveMapHost(
         }
     }
 
-    /** Frames the whole route (preview); the user can recenter afterwards. */
-    fun showOverview(points: List<LatLng>, paddingPx: Int) {
+    /**
+     * Frames the whole route (preview); the user can recenter afterwards.
+     * [bottomPx] keeps the route clear of the preview card at the bottom.
+     */
+    fun showOverview(points: List<LatLng>, paddingPx: Int, bottomPx: Int) {
         val readyMap = map ?: return
         if (points.size < 2) return
         activeComponent()?.cameraMode = CameraMode.NONE
         trackingDismissed = true
         val bounds = LatLngBounds.Builder().includes(points).build()
-        readyMap.easeCamera(CameraUpdateFactory.newLatLngBounds(bounds, paddingPx), 600)
+        readyMap.easeCamera(
+            CameraUpdateFactory.newLatLngBounds(bounds, paddingPx, paddingPx, paddingPx, bottomPx),
+            600,
+        )
     }
 
-    /** Driving view for turn-by-turn: heading-up, close zoom, following the car. */
+    /**
+     * Driving view for turn-by-turn: heading-up, close zoom, following the
+     * car. The zoom is part of the camera-mode transition — a separate
+     * zoomWhileTracking() is ignored while that transition is still running.
+     */
     fun followForGuidance() {
         val component = activeComponent() ?: return
-        component.cameraMode = CameraMode.TRACKING_GPS
-        component.zoomWhileTracking(MapStyle.GUIDANCE_ZOOM)
         trackingDismissed = false
+        component.setCameraMode(CameraMode.TRACKING_GPS, 750L, MapStyle.GUIDANCE_ZOOM, null, null, null)
+    }
+
+    /** Back to following the car at normal driving zoom (navigation ended). */
+    fun followCar() {
+        val component = activeComponent() ?: return
+        trackingDismissed = false
+        val mode = cameraModeFor(lastPushed?.speed?.times(3.6f)?.toInt())
+        component.setCameraMode(mode, 750L, MapStyle.FOLLOW_ZOOM, null, null, null)
     }
 
     @SuppressLint("MissingPermission") // fed by AutoVerse's own permission-checked GPS; no engine here

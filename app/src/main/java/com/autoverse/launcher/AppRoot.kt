@@ -60,6 +60,7 @@ import com.autoverse.launcher.feature.probe.MapDisplayProbeScreen
 import com.autoverse.launcher.feature.probe.MapEmbedProbeScreen
 import com.autoverse.launcher.core.permissions.CarSetupStatus
 import com.autoverse.launcher.core.design.components.LocalOpenMusic
+import com.autoverse.launcher.core.design.components.LocalUse24HourClock
 import com.autoverse.launcher.core.music.MusicController
 import com.autoverse.launcher.feature.music.MusicScreen
 import com.autoverse.launcher.core.routing.InAppNavigationController
@@ -307,6 +308,7 @@ fun AppRoot(
             LocalPerformanceSpec provides performanceSpec,
             LocalInAppNavigation provides navigation,
             LocalOpenMusic provides { screen = Screen.MUSIC },
+            LocalUse24HourClock provides settings.clock24h,
             LocalDensity provides Density(
                 density = baseDensity.density,
                 fontScale = baseDensity.fontScale * settings.textScale,

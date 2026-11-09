@@ -1,4 +1,4 @@
-﻿import java.util.Properties
+import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
@@ -23,8 +23,8 @@ android {
         applicationId = "com.autoverse.launcher"
         minSdk = 23
         targetSdk = 36
-        versionCode = 43
-        versionName = "1.3.0"
+        versionCode = 44
+        versionName = "1.3.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         ndk {

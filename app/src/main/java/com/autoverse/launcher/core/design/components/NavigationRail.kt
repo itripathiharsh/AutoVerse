@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.Home
@@ -59,7 +61,7 @@ val LocalOpenMusic = staticCompositionLocalOf<(() -> Unit)?> { null }
  * Total height the labeled rail needs (logo + eight items + paddings). Below
  * it the rail switches to icon-only items instead of clipping labels.
  */
-private val LABELED_RAIL_MIN_HEIGHT = 440.dp
+private val LABELED_RAIL_MIN_HEIGHT = 600.dp // measured: 9 labeled items need ~590dp
 
 /** One rail destination: icon, label, click target, selection. */
 private data class RailEntry(
@@ -106,7 +108,11 @@ fun AppNavigationRail(
         BoxWithConstraints(modifier = Modifier.fillMaxHeight()) {
             val labeled = maxHeight >= LABELED_RAIL_MIN_HEIGHT
             Column(
-                modifier = Modifier.fillMaxHeight(),
+                // Scrolls as a last resort (very short screens, large text) so no
+                // destination is ever cut off out of reach.
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(AutoVerseSpacing.xxs),
             ) {

@@ -40,6 +40,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -73,7 +79,8 @@ import java.time.format.DateTimeFormatter
 fun InAppNavigationMapSync(controller: InAppNavigationController) {
     val host = LocalLiveMapHost.current ?: return
     val state by controller.state.collectAsStateWithLifecycle()
-    val padding = with(LocalDensity.current) { 48.dp.roundToPx() }
+    val padding = with(LocalDensity.current) { 40.dp.roundToPx() }
+    val bottomPadding = with(LocalDensity.current) { 190.dp.roundToPx() } // clear of the preview card
     val route = when (val s = state) {
         is NavState.Preview -> s.route
         is NavState.Guiding -> s.route
@@ -85,14 +92,22 @@ fun InAppNavigationMapSync(controller: InAppNavigationController) {
     val mode = when (state) {
         is NavState.Preview -> 1
         is NavState.Guiding -> 2
-        else -> 0
+        is NavState.Idle -> 0
+        else -> -1 // preparing / arrived / failed: leave the camera where it is
     }
+    var previousMode by remember { mutableIntStateOf(0) }
     LaunchedEffect(host, mode, route) {
+        // The map may still be resizing (keyboard closing); let layout settle first.
+        delay(350)
         when (mode) {
-            1 -> route?.let { r -> host.showOverview(r.points.map { LatLng(it.latitude, it.longitude) }, padding) }
+            1 -> route?.let { r ->
+                host.showOverview(r.points.map { LatLng(it.latitude, it.longitude) }, padding, bottomPadding)
+            }
             2 -> host.followForGuidance()
-            else -> Unit
+            0 -> if (previousMode != 0) host.followCar()
         }
+        // Remember the last real camera mode, so Arrived/Failed → Idle still recenters.
+        if (mode != -1) previousMode = mode
     }
 }
 
@@ -106,6 +121,8 @@ fun BoxScope.InAppNavigationOverlay(
     val state by controller.state.collectAsStateWithLifecycle()
     val search by controller.searchState.collectAsStateWithLifecycle()
     val voiceOn by controller.voiceOn.collectAsStateWithLifecycle()
+    val focus = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
 
     when (val s = state) {
         NavState.Idle -> if (search.query.isNotBlank()) {
@@ -113,7 +130,12 @@ fun BoxScope.InAppNavigationOverlay(
                 results = search.results,
                 loading = search.loading,
                 error = search.error,
-                onPick = controller::navigateTo,
+                onPick = { place ->
+                    // Close the keyboard so the map gets its full size back.
+                    keyboard?.hide()
+                    focus.clearFocus()
+                    controller.navigateTo(place)
+                },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(AutoVerseSpacing.xs),
@@ -223,6 +245,8 @@ fun InAppNavigationSearchRow(
     val state by controller.state.collectAsStateWithLifecycle()
     val search by controller.searchState.collectAsStateWithLifecycle()
     val recents by controller.recents.collectAsStateWithLifecycle()
+    val focus = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
     if (state is NavState.Guiding || state is NavState.Preview) return
 
     Spacer(Modifier.size(AutoVerseSpacing.xs))
@@ -261,7 +285,11 @@ fun InAppNavigationSearchRow(
                     modifier = Modifier
                         .clip(AutoVerseShapes.pill)
                         .background(colors.surfaceHighlight)
-                        .clickable { controller.navigateTo(place) }
+                        .clickable {
+                            keyboard?.hide()
+                            focus.clearFocus()
+                            controller.navigateTo(place)
+                        }
                         .heightIn(min = AutoVerseSpacing.touchMin)
                         .padding(horizontal = AutoVerseSpacing.sm),
                     verticalAlignment = Alignment.CenterVertically,
@@ -449,6 +477,10 @@ private fun maneuverIcon(type: ManeuverType): ImageVector = when (type) {
     ManeuverType.CONTINUE -> Icons.Outlined.ArrowUpward
 }
 
+/** Whether clocks use 24-hour time; provided from the app's Clock setting at the root. */
+val LocalUse24HourClock = androidx.compose.runtime.staticCompositionLocalOf { false }
+
+@Composable
 private fun arrivalClock(remainingSeconds: Double): String =
     LocalTime.now().plusSeconds(remainingSeconds.toLong())
-        .format(DateTimeFormatter.ofPattern("h:mm a"))
+        .format(DateTimeFormatter.ofPattern(if (LocalUse24HourClock.current) "HH:mm" else "h:mm a"))
