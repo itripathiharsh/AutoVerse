@@ -171,6 +171,8 @@ fun SettingsScreen(
     dashboardPreview: @Composable (Modifier) -> Unit = {},
     onResetSettings: () -> Unit = {},
     initialCategory: SettingsCategory? = null,
+    onSetFullScreen: (Boolean) -> Unit = {},
+    onEditHome: () -> Unit = {},
 ) {
     var selectedCategoryName by rememberSaveable {
         mutableStateOf((initialCategory ?: SettingsCategory.APPEARANCE).name)
@@ -207,6 +209,8 @@ fun SettingsScreen(
         openNavigation = onOpenNavigation,
         openSpeedometer = onOpenSpeedometer,
         openObd = onOpenObd,
+        setFullScreen = onSetFullScreen,
+        editHome = onEditHome,
     )
 
     val selectCategory: (SettingsCategory) -> Unit = { category ->
@@ -455,6 +459,8 @@ private class SettingsCallbacks(
     val openNavigation: () -> Unit,
     val openSpeedometer: () -> Unit,
     val openObd: () -> Unit,
+    val setFullScreen: (Boolean) -> Unit,
+    val editHome: () -> Unit,
 )
 
 /**
@@ -903,6 +909,29 @@ private fun AppearanceSettings(
             style = MaterialTheme.typography.bodyMedium,
             color = colors.textFaint,
         )
+    }
+
+    WidgetContainer(
+        title = "SCREEN",
+        subtitle = "Use the whole car display",
+        icon = Icons.Outlined.Tune,
+    ) {
+        SwitchRow(
+            title = "Full screen",
+            subtitle = "Hide Android's status and navigation bars. Swipe from the top or bottom edge to show them briefly.",
+            checked = settings.fullScreen,
+            onCheckedChange = callbacks.setFullScreen,
+        )
+        Spacer(Modifier.height(AutoVerseSpacing.xs))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "Choose what Home shows: map, music, speed — and where the map sits.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.textSecondary,
+                modifier = Modifier.weight(1f),
+            )
+            TextAction(text = "Edit home", onClick = callbacks.editHome)
+        }
     }
 
     WidgetContainer(

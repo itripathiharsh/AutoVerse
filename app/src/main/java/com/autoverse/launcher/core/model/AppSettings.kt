@@ -27,6 +27,28 @@ enum class AppearanceMode(val displayName: String) {
     NIGHT("Night"),
 }
 
+/** How much of Home the map takes beside the side panels. */
+enum class HomeMapSize(val displayName: String, val fraction: Float) {
+    SMALL("Small", 0.5f),
+    MEDIUM("Medium", 0.6f),
+    LARGE("Large", 0.7f),
+}
+
+/**
+ * What the driver chose to keep on Home (Edit home). At least one panel is
+ * always visible — [normalized] turns the map back on if everything was off.
+ */
+data class HomeLayout(
+    val showMap: Boolean = true,
+    val showMusic: Boolean = true,
+    val showSpeed: Boolean = true,
+    val mapOnRight: Boolean = false,
+    val mapSize: HomeMapSize = HomeMapSize.MEDIUM,
+) {
+    fun normalized(): HomeLayout =
+        if (!showMap && !showMusic && !showSpeed) copy(showMap = true) else this
+}
+
 data class AppSettings(
     val themeId: AutoVerseThemeId = AutoVerseThemeId.COBALT,
     val appearanceMode: AppearanceMode = AppearanceMode.SYSTEM,
@@ -61,4 +83,12 @@ data class AppSettings(
     val onboardingComplete: Boolean = false,
     /** Theme system Phase E: synthesized confirmation sounds; off by default. */
     val themeSoundsEnabled: Boolean = false,
+    /**
+     * Full screen: Android's status and navigation bars are hidden (a swipe
+     * from the edge shows them briefly). On by default — a car screen has
+     * no room to spare.
+     */
+    val fullScreen: Boolean = true,
+    /** Edit home: which panels Home shows and how the map is placed. */
+    val homeLayout: HomeLayout = HomeLayout(),
 )

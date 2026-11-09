@@ -506,6 +506,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { settingsRepository.setClock24h(enabled) }
     }
 
+    fun setFullScreen(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.setFullScreen(enabled) }
+    }
+
+    fun setHomeLayout(layout: com.autoverse.launcher.core.model.HomeLayout) {
+        viewModelScope.launch { settingsRepository.setHomeLayout(layout) }
+    }
+
     /** Persists the user text scale; the repository clamps to the safe range. */
     fun setTextScale(scale: Float) {
         viewModelScope.launch { settingsRepository.setTextScale(scale) }

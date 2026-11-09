@@ -13,6 +13,8 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.autoverse.launcher.core.model.AppSettings
 import com.autoverse.launcher.core.model.AppearanceMode
 import com.autoverse.launcher.core.model.AutoVerseThemeId
+import com.autoverse.launcher.core.model.HomeLayout
+import com.autoverse.launcher.core.model.HomeMapSize
 import com.autoverse.launcher.core.model.PerformanceProfile
 import java.io.IOException
 import kotlinx.coroutines.flow.Flow
@@ -56,8 +58,32 @@ class SettingsRepository(private val context: Context) {
                 themeSoundsEnabled = preferences[KEY_THEME_SOUNDS] ?: defaults.themeSoundsEnabled,
                 appsRecentCollapsed = preferences[KEY_APPS_RECENT_COLLAPSED] ?: defaults.appsRecentCollapsed,
                 mapsPlacesCollapsed = preferences[KEY_MAPS_PLACES_COLLAPSED] ?: defaults.mapsPlacesCollapsed,
+                fullScreen = preferences[KEY_FULL_SCREEN] ?: defaults.fullScreen,
+                homeLayout = HomeLayout(
+                    showMap = preferences[KEY_HOME_SHOW_MAP] ?: defaults.homeLayout.showMap,
+                    showMusic = preferences[KEY_HOME_SHOW_MUSIC] ?: defaults.homeLayout.showMusic,
+                    showSpeed = preferences[KEY_HOME_SHOW_SPEED] ?: defaults.homeLayout.showSpeed,
+                    mapOnRight = preferences[KEY_HOME_MAP_RIGHT] ?: defaults.homeLayout.mapOnRight,
+                    mapSize = HomeMapSize.entries.firstOrNull { it.name == preferences[KEY_HOME_MAP_SIZE] }
+                        ?: defaults.homeLayout.mapSize,
+                ).normalized(),
             )
         }
+
+    suspend fun setFullScreen(enabled: Boolean) {
+        context.settingsDataStore.edit { it[KEY_FULL_SCREEN] = enabled }
+    }
+
+    suspend fun setHomeLayout(layout: HomeLayout) {
+        val l = layout.normalized()
+        context.settingsDataStore.edit {
+            it[KEY_HOME_SHOW_MAP] = l.showMap
+            it[KEY_HOME_SHOW_MUSIC] = l.showMusic
+            it[KEY_HOME_SHOW_SPEED] = l.showSpeed
+            it[KEY_HOME_MAP_RIGHT] = l.mapOnRight
+            it[KEY_HOME_MAP_SIZE] = l.mapSize.name
+        }
+    }
 
     suspend fun setPremiumUnlocked(unlocked: Boolean) {
         context.settingsDataStore.edit { it[KEY_PREMIUM_UNLOCKED] = unlocked }
@@ -161,5 +187,11 @@ class SettingsRepository(private val context: Context) {
         val KEY_THEME_SOUNDS = booleanPreferencesKey("theme_sounds")
         val KEY_APPS_RECENT_COLLAPSED = booleanPreferencesKey("apps_recent_collapsed")
         val KEY_MAPS_PLACES_COLLAPSED = booleanPreferencesKey("maps_places_collapsed")
+        val KEY_FULL_SCREEN = booleanPreferencesKey("full_screen")
+        val KEY_HOME_SHOW_MAP = booleanPreferencesKey("home_show_map")
+        val KEY_HOME_SHOW_MUSIC = booleanPreferencesKey("home_show_music")
+        val KEY_HOME_SHOW_SPEED = booleanPreferencesKey("home_show_speed")
+        val KEY_HOME_MAP_RIGHT = booleanPreferencesKey("home_map_right")
+        val KEY_HOME_MAP_SIZE = stringPreferencesKey("home_map_size")
     }
 }

@@ -61,6 +61,7 @@ import com.autoverse.launcher.core.navigation.RecentDestination
 import com.autoverse.launcher.core.phone.CallUiState
 import com.autoverse.launcher.core.phone.showsIncomingCall
 import com.autoverse.launcher.core.weather.WeatherUiState
+import com.autoverse.launcher.core.model.HomeLayout
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 
@@ -154,6 +155,10 @@ fun HomeScreen(
     hasCallPermission: Boolean = false,
     onRequestCallPermission: () -> Unit = {},
     onOpenMusic: (() -> Unit)? = null,
+    homeLayout: HomeLayout = HomeLayout(),
+    onHomeLayoutChange: (HomeLayout) -> Unit = {},
+    editingHome: Boolean = false,
+    onEditingHomeChange: (Boolean) -> Unit = {},
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -238,9 +243,18 @@ fun HomeScreen(
             maps = maps,
             driving = driving,
             rail = rail,
+            layout = homeLayout,
+            onEditHome = { onEditingHomeChange(true) },
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
+        )
+    }
+    if (editingHome) {
+        HomeEditDialog(
+            layout = homeLayout,
+            onChange = onHomeLayoutChange,
+            onDone = { onEditingHomeChange(false) },
         )
     }
 }
@@ -258,6 +272,8 @@ internal fun HomeScreenContent(
     maps: MapsSection = MapsSection(),
     driving: DrivingSection = DrivingSection(),
     rail: RailSection = RailSection(),
+    layout: HomeLayout = HomeLayout(),
+    onEditHome: (() -> Unit)? = null,
 ) {
     val colors = LocalAutoVerseColors.current
     BoxWithConstraints(modifier = modifier.background(colors.backgroundTop)) {
@@ -281,6 +297,7 @@ internal fun HomeScreenContent(
                 fpsText = data.fpsText,
                 onOpenDiagnostics = rail.onOpenDiagnostics,
                 onOpenSettings = rail.onOpenSettings,
+                onEditHome = onEditHome,
             )
             Row(
                 modifier = Modifier
@@ -310,7 +327,7 @@ internal fun HomeScreenContent(
                         contentWidthDp = maxWidth.value.roundToInt(),
                         contentHeightDp = maxHeight.value.roundToInt(),
                     )
-                    CockpitRegions(geometry = geometry, media = media, maps = maps, driving = driving)
+                    CockpitRegions(geometry = geometry, layout = layout, media = media, maps = maps, driving = driving)
                 }
             }
         }
@@ -328,12 +345,13 @@ private fun StatusChipsMode.coerceAtMost(limit: StatusChipsMode): StatusChipsMod
 @Composable
 private fun CockpitRegions(
     geometry: CockpitGeometry,
+    layout: HomeLayout,
     media: MediaSection,
     maps: MapsSection,
     driving: DrivingSection,
 ) {
-    val mapWeight = geometry.mapFraction
-    val sideWeight = 1f - geometry.mapFraction
+    val mapWeight = layout.mapSize.fraction
+    val sideWeight = 1f - mapWeight
     val mapRegion: @Composable (Modifier) -> Unit = { regionModifier ->
         MapsLaunchPanel(
             mapsStatus = maps.status,
@@ -355,32 +373,42 @@ private fun CockpitRegions(
     val speedPanel: @Composable (Modifier) -> Unit = { panelModifier ->
         SpeedOrCallPanel(driving = driving, compact = geometry.compactPanels, modifier = panelModifier)
     }
-    when (geometry.arrangement) {
-        CockpitArrangement.SIDE_BY_SIDE -> Row(
+    val l = layout.normalized()
+    val hasSide = l.showMusic || l.showSpeed
+    // The music/speed panels the driver kept, in a column (beside the map) or a row (below it / no map).
+    val sidePanels: @Composable (Modifier, Boolean) -> Unit = { panelModifier, vertical ->
+        if (vertical) {
+            Column(modifier = panelModifier, verticalArrangement = Arrangement.spacedBy(AutoVerseSpacing.gridGap)) {
+                if (l.showMusic) musicPanel(Modifier.weight(1f).fillMaxWidth())
+                if (l.showSpeed) speedPanel(Modifier.weight(1f).fillMaxWidth())
+            }
+        } else {
+            Row(modifier = panelModifier, horizontalArrangement = Arrangement.spacedBy(AutoVerseSpacing.gridGap)) {
+                if (l.showMusic) musicPanel(Modifier.weight(1f).fillMaxHeight())
+                if (l.showSpeed) speedPanel(Modifier.weight(1f).fillMaxHeight())
+            }
+        }
+    }
+    when {
+        // Map only: it takes the whole cockpit.
+        l.showMap && !hasSide -> mapRegion(Modifier.fillMaxSize())
+        // No map: music and speed share the cockpit side by side.
+        !l.showMap -> sidePanels(Modifier.fillMaxSize(), false)
+        geometry.arrangement == CockpitArrangement.SIDE_BY_SIDE -> Row(
             modifier = Modifier.fillMaxSize(),
             horizontalArrangement = Arrangement.spacedBy(AutoVerseSpacing.gridGap),
         ) {
-            mapRegion(Modifier.weight(mapWeight).fillMaxHeight())
-            Column(
-                modifier = Modifier.weight(sideWeight).fillMaxHeight(),
-                verticalArrangement = Arrangement.spacedBy(AutoVerseSpacing.gridGap),
-            ) {
-                musicPanel(Modifier.weight(1f).fillMaxWidth())
-                speedPanel(Modifier.weight(1f).fillMaxWidth())
-            }
+            if (!l.mapOnRight) mapRegion(Modifier.weight(mapWeight).fillMaxHeight())
+            sidePanels(Modifier.weight(sideWeight).fillMaxHeight(), true)
+            if (l.mapOnRight) mapRegion(Modifier.weight(mapWeight).fillMaxHeight())
         }
-        CockpitArrangement.STACKED -> Column(
+        else -> Column(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(AutoVerseSpacing.gridGap),
         ) {
-            mapRegion(Modifier.weight(mapWeight).fillMaxWidth())
-            Row(
-                modifier = Modifier.weight(sideWeight).fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(AutoVerseSpacing.gridGap),
-            ) {
-                musicPanel(Modifier.weight(1f).fillMaxHeight())
-                speedPanel(Modifier.weight(1f).fillMaxHeight())
-            }
+            if (!l.mapOnRight) mapRegion(Modifier.weight(mapWeight).fillMaxWidth())
+            sidePanels(Modifier.weight(sideWeight).fillMaxWidth(), false)
+            if (l.mapOnRight) mapRegion(Modifier.weight(mapWeight).fillMaxWidth())
         }
     }
 }

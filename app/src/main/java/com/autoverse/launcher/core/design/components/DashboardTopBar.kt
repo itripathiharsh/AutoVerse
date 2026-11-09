@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Bluetooth
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Wifi
@@ -55,6 +56,7 @@ fun DashboardTopBar(
     onBack: (() -> Unit)? = null,
     onOpenDiagnostics: (() -> Unit)? = null,
     onOpenSettings: (() -> Unit)? = null,
+    onEditHome: (() -> Unit)? = null,
 ) {
     val colors = LocalAutoVerseColors.current
     val spec = LocalPerformanceSpec.current
@@ -95,6 +97,15 @@ fun DashboardTopBar(
             dateText = dateText,
             compact = chips == StatusChipsMode.NONE,
         )
+        if (onEditHome != null) {
+            IconButton(onClick = onEditHome) {
+                Icon(
+                    Icons.Outlined.Edit,
+                    contentDescription = "Edit home",
+                    tint = colors.textSecondary,
+                )
+            }
+        }
         if (onOpenDiagnostics != null) {
             IconButton(onClick = onOpenDiagnostics) {
                 Icon(

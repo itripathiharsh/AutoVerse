@@ -113,6 +113,8 @@ fun AppRoot(
     LaunchedEffect(navigation, speedometerData) { navigation.onLocation(speedometerData) }
 
     var screen by rememberSaveable { mutableStateOf(Screen.HOME) }
+    var editingHome by rememberSaveable { mutableStateOf(false) }
+    FullScreenEffect(enabled = settings.fullScreen)
     var drawerQuery by rememberSaveable { mutableStateOf("") }
     var drawerCategory by rememberSaveable { mutableStateOf(AppCategory.ALL) }
     var navQuery by rememberSaveable { mutableStateOf("") }
@@ -356,6 +358,10 @@ fun AppRoot(
                                 screen = Screen.APP_DRAWER
                             },
                             onOpenMusic = { screen = Screen.MUSIC },
+                            homeLayout = settings.homeLayout,
+                            onHomeLayoutChange = viewModel::setHomeLayout,
+                            editingHome = editingHome,
+                            onEditingHomeChange = { editingHome = it },
                             mediaState = mediaState,
                             onMediaCommand = viewModel::sendMediaCommand,
                             onOpenMediaAccessSettings = {
@@ -594,9 +600,14 @@ fun AppRoot(
                             dateText = dashboard.dateText,
                             connectivity = dashboard.connectivity,
                             dashboardPreview = { previewModifier ->
-                                DashboardPreview(data = dashboard, modifier = previewModifier)
+                                DashboardPreview(data = dashboard, layout = settings.homeLayout, modifier = previewModifier)
                             },
                             onResetSettings = viewModel::resetSettings,
+                            onSetFullScreen = viewModel::setFullScreen,
+                            onEditHome = {
+                                screen = Screen.HOME
+                                editingHome = true
+                            },
                         )
                     }
 
@@ -765,6 +776,7 @@ private fun DiagnosticsSamplingEffect(active: Boolean, viewModel: MainViewModel)
 @Composable
 private fun DashboardPreview(
     data: DashboardData,
+    layout: com.autoverse.launcher.core.model.HomeLayout,
     modifier: Modifier = Modifier,
 ) {
     // The miniature must never adopt the session's single live MapView.
@@ -772,9 +784,47 @@ private fun DashboardPreview(
         HomeScreenContent(
             data = data,
             contentInsets = WindowInsets(0, 0, 0, 0),
+            layout = layout,
             modifier = modifier.fillMaxSize(),
         )
     }
+}
+
+/**
+ * Full screen: hides the status and navigation bars (swipe from an edge shows
+ * them briefly). Re-applied on every resume because dialogs, the keyboard and
+ * other apps can bring the bars back.
+ */
+@Composable
+private fun FullScreenEffect(enabled: Boolean) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(enabled, lifecycleOwner) {
+        val window = context.findActivity()?.window
+        fun apply() {
+            val w = window ?: return
+            val controller = androidx.core.view.WindowCompat.getInsetsController(w, w.decorView)
+            if (enabled) {
+                controller.systemBarsBehavior =
+                    androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                controller.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+            } else {
+                controller.show(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+            }
+        }
+        apply()
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) apply()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+}
+
+private tailrec fun Context.findActivity(): android.app.Activity? = when (this) {
+    is android.app.Activity -> this
+    is android.content.ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
 
 /**
