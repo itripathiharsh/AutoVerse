@@ -2,6 +2,7 @@ package com.autoverse.launcher.core.design
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
@@ -70,7 +71,9 @@ fun AutoVerseTheme(
         MaterialTheme(
             colorScheme = materialColors,
             typography = AutoVerseTypography,
-            content = content,
-        )
+        ) {
+            // Any Text without an explicit style still gets Inter, not Roboto.
+            ProvideTextStyle(AutoVerseTypography.bodyMedium, content)
+        }
     }
 }

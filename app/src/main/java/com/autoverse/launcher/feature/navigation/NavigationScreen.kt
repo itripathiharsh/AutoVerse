@@ -156,16 +156,22 @@ fun NavigationScreen(
                 .padding(innerPadding)
                 .background(colors.backgroundTop)
                 .windowInsetsPadding(WindowInsets.safeDrawing)
-                .padding(horizontal = AutoVerseSpacing.md, vertical = AutoVerseSpacing.sm),
+                .padding(AutoVerseSpacing.sm),
             verticalArrangement = Arrangement.spacedBy(AutoVerseSpacing.sm),
         ) {
-            DashboardTopBar(
-                clockText = clockText,
-                dateText = dateText,
-                connectivity = connectivity,
-                onOpenDiagnostics = onOpenDiagnostics,
-                onOpenSettings = onOpenSettings,
-            )
+            // With in-app navigation the map is the whole screen: search, Home/Work,
+            // recents and stops all live on it, so no side panel and no top bar
+            // (the time is in the rail).
+            val inApp = com.autoverse.launcher.core.routing.LocalInAppNavigation.current != null
+            if (!inApp) {
+                DashboardTopBar(
+                    clockText = clockText,
+                    dateText = dateText,
+                    connectivity = connectivity,
+                    onOpenDiagnostics = onOpenDiagnostics,
+                    onOpenSettings = onOpenSettings,
+                )
+            }
             Row(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(AutoVerseSpacing.gridGap),
@@ -211,7 +217,9 @@ fun NavigationScreen(
                             modifier = panelModifier,
                         )
                     }
-                    if (sideBySide) {
+                    if (inApp) {
+                        mapRegion(Modifier.fillMaxSize())
+                    } else if (sideBySide) {
                         Row(
                             modifier = Modifier.fillMaxSize(),
                             horizontalArrangement = Arrangement.spacedBy(AutoVerseSpacing.gridGap),

@@ -30,29 +30,32 @@ data class AutoVerseColors(
 )
 
 /**
- * Cobalt at night — the AutoVerse flagship palette. Deep charcoal surfaces
- * with the restrained electric blue drawn from the brand mark. Every ratio
+ * Cobalt at night — the AutoVerse flagship palette. Neutral graphite (not
+ * blue-tinted) with clearly stepped levels (~4-5% lightness apart, so cheap
+ * TN/IPS panels still separate them off-angle). Blue is reserved for the
+ * route, the active item and the one primary action. Outlines are
+ * translucent white: an edge catching light, not a grey line. Every ratio
  * is verified by ContrastTest.
  */
 val CobaltDarkColors = AutoVerseColors(
-    backgroundTop = Color(0xFF090C11),
-    backgroundBottom = Color(0xFF0C1017),
-    surface = Color(0xFF11151D),
-    surfaceRaised = Color(0xFF161B25),
-    surfaceHighlight = Color(0xFF1C2330),
-    outline = Color(0xFF262E3C),
-    outlineStrong = Color(0xFF354054),
-    accent = Color(0xFF4A90F7),
-    accentSoft = Color(0x334A90F7),
-    onAccent = Color(0xFF071523),
-    textPrimary = Color(0xFFE8EDF4),
-    textSecondary = Color(0xFF9AA7B8),
-    textFaint = Color(0xFF78879C),
-    disabledContainer = Color(0xFF1B2230),
-    disabledContent = Color(0xFF5C6978),
-    success = Color(0xFF57D3A1),
-    warning = Color(0xFFE8B04B),
-    danger = Color(0xFFF0716A),
+    backgroundTop = Color(0xFF07080A),
+    backgroundBottom = Color(0xFF0A0C0F),
+    surface = Color(0xFF121418),
+    surfaceRaised = Color(0xFF1A1D22),
+    surfaceHighlight = Color(0xFF24282F),
+    outline = Color(0x14FFFFFF),
+    outlineStrong = Color(0x29FFFFFF),
+    accent = Color(0xFF4C93FF),
+    accentSoft = Color(0x2E4C93FF),
+    onAccent = Color(0xFF06101F),
+    textPrimary = Color(0xFFF2F4F7),
+    textSecondary = Color(0xFFA3AAB5),
+    textFaint = Color(0xFF828A96),
+    disabledContainer = Color(0xFF1C1F24),
+    disabledContent = Color(0xFF5F6672),
+    success = Color(0xFF3DD68C),
+    warning = Color(0xFFF5B544),
+    danger = Color(0xFFFF6B66),
 )
 
 /**
@@ -81,21 +84,21 @@ val CobaltDayColors = AutoVerseColors(
     danger = Color(0xFFC33B32),
 )
 
-/** Obsidian at night — the original flagship palette. */
+/** Obsidian at night — warm graphite with a champagne-gold accent. */
 val ObsidianDarkColors = AutoVerseColors(
-    backgroundTop = Color(0xFF05070B),
-    backgroundBottom = Color(0xFF0C1018),
-    surface = Color(0xFF0F141C),
-    surfaceRaised = Color(0xFF141B26),
-    surfaceHighlight = Color(0xFF1B2432),
-    outline = Color(0xFF232E3E),
-    outlineStrong = Color(0xFF2F3D51),
+    backgroundTop = Color(0xFF070708),
+    backgroundBottom = Color(0xFF0A0A0C),
+    surface = Color(0xFF131416),
+    surfaceRaised = Color(0xFF1B1C1F),
+    surfaceHighlight = Color(0xFF26272B),
+    outline = Color(0x14FFFFFF),
+    outlineStrong = Color(0x29FFFFFF),
     accent = Color(0xFFF2B857),
-    accentSoft = Color(0x33F2B857),
+    accentSoft = Color(0x2EF2B857),
     onAccent = Color(0xFF201607),
-    textPrimary = Color(0xFFE9EFF7),
-    textSecondary = Color(0xFF9DACC0),
-    textFaint = Color(0xFF7E8CA0),
+    textPrimary = Color(0xFFF3F2EF),
+    textSecondary = Color(0xFFA9ACB2),
+    textFaint = Color(0xFF858993),
     disabledContainer = Color(0xFF1A2230),
     disabledContent = Color(0xFF5A6678),
     success = Color(0xFF6FCF97),
@@ -130,63 +133,22 @@ val ObsidianDayColors = AutoVerseColors(
     danger = Color(0xFFC0392B),
 )
 
-/** Neon Pulse at night — deep blue-black surfaces with restrained electric cyan. */
-val NeonPulseDarkColors = AutoVerseColors(
-    backgroundTop = Color(0xFF04070C),
-    backgroundBottom = Color(0xFF0A1018),
-    surface = Color(0xFF0C141E),
-    surfaceRaised = Color(0xFF101B28),
-    surfaceHighlight = Color(0xFF16273A),
-    outline = Color(0xFF1E3040),
-    outlineStrong = Color(0xFF2A4256),
-    accent = Color(0xFF35E0FF),
-    accentSoft = Color(0x3335E0FF),
-    onAccent = Color(0xFF041E26),
-    textPrimary = Color(0xFFE8F6FC),
-    textSecondary = Color(0xFFA8C0D0),
-    textFaint = Color(0xFF8AA2B4),
-    disabledContainer = Color(0xFF131E2B),
-    disabledContent = Color(0xFF5A6E80),
-    success = Color(0xFF5BD99F),
-    warning = Color(0xFFF2C94C),
-    danger = Color(0xFFEB6E63),
-)
 
 /**
  * Neon Pulse by day — cool daylight surfaces. The cyan accent deepens to a
  * teal so white-on-accent and accent-on-light both clear 4.5:1/3:1, and the
  * soft fill is pre-blended to keep compositing cheap.
  */
-val NeonPulseDayColors = AutoVerseColors(
-    backgroundTop = Color(0xFFF1F7FA),
-    backgroundBottom = Color(0xFFE4EDF3),
-    surface = Color(0xFFFFFFFF),
-    surfaceRaised = Color(0xFFF4F9FC),
-    surfaceHighlight = Color(0xFFE2EEF5),
-    outline = Color(0xFFCFDDE7),
-    outlineStrong = Color(0xFFB5C7D3),
-    accent = Color(0xFF0B6E8A),
-    accentSoft = Color(0xFFD6EBF2),
-    onAccent = Color(0xFFFFFFFF),
-    textPrimary = Color(0xFF0B1620),
-    textSecondary = Color(0xFF40536A),
-    textFaint = Color(0xFF4F6478),
-    disabledContainer = Color(0xFFDCE7EF),
-    disabledContent = Color(0xFF8FA2B2),
-    success = Color(0xFF17804F),
-    warning = Color(0xFF8A6500),
-    danger = Color(0xFFC0392B),
-)
 
 /** Atelier at night — warm charcoal and quiet clay surfaces for calm reading. */
 val AtelierDarkColors = AutoVerseColors(
-    backgroundTop = Color(0xFF100D0A),
-    backgroundBottom = Color(0xFF181410),
-    surface = Color(0xFF1C1712),
-    surfaceRaised = Color(0xFF231D16),
-    surfaceHighlight = Color(0xFF2C241B),
-    outline = Color(0xFF3A2F24),
-    outlineStrong = Color(0xFF4C3E30),
+    backgroundTop = Color(0xFF0E0C0A),
+    backgroundBottom = Color(0xFF12100D),
+    surface = Color(0xFF1B1612),
+    surfaceRaised = Color(0xFF241E18),
+    surfaceHighlight = Color(0xFF2F2820),
+    outline = Color(0x16FFF1E2),
+    outlineStrong = Color(0x2BFFF1E2),
     accent = Color(0xFFE0A87E),
     accentSoft = Color(0x33E0A87E),
     onAccent = Color(0xFF2A1A0C),
@@ -227,13 +189,13 @@ val AtelierDayColors = AutoVerseColors(
 
 /** Apex at night — near-black asphalt with a motorsport orange accent. */
 val ApexDarkColors = AutoVerseColors(
-    backgroundTop = Color(0xFF0A0708),
-    backgroundBottom = Color(0xFF140C0D),
-    surface = Color(0xFF170E10),
-    surfaceRaised = Color(0xFF1E1215),
-    surfaceHighlight = Color(0xFF28181B),
-    outline = Color(0xFF382226),
-    outlineStrong = Color(0xFF4A2D33),
+    backgroundTop = Color(0xFF0A0809),
+    backgroundBottom = Color(0xFF0D0A0B),
+    surface = Color(0xFF171214),
+    surfaceRaised = Color(0xFF201A1C),
+    surfaceHighlight = Color(0xFF2B2326),
+    outline = Color(0x14FFFFFF),
+    outlineStrong = Color(0x29FFFFFF),
     accent = Color(0xFFFF6B2C),
     accentSoft = Color(0x33FF6B2C),
     onAccent = Color(0xFF2A0A05),
@@ -244,7 +206,7 @@ val ApexDarkColors = AutoVerseColors(
     disabledContent = Color(0xFF70564F),
     success = Color(0xFF63D08C),
     warning = Color(0xFFF2B84C),
-    danger = Color(0xFFE5484D),
+    danger = Color(0xFFFF6166),
 )
 
 /**

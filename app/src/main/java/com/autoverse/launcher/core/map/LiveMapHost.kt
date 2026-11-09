@@ -33,6 +33,8 @@ import org.maplibre.android.maps.MapLibreMapOptions
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
 import org.maplibre.android.offline.OfflineManager
+import org.maplibre.android.location.LocationComponentOptions
+import org.maplibre.android.style.expressions.Expression
 import org.maplibre.android.style.layers.Property
 import org.maplibre.android.style.layers.PropertyFactory
 
@@ -124,10 +126,18 @@ class LiveMapHost(
     }
 
     fun setNight(night: Boolean) {
-        val url = MapStyle.styleUrl(night)
-        if (url == requestedStyleUrl) return
-        requestedStyleUrl = url
-        if (map != null) loadStyle(url)
+        val key = MapStyle.styleKey(night)
+        if (key == requestedStyleUrl) return
+        requestedStyleUrl = key
+        if (map != null) loadStyle(key)
+    }
+
+    /** Built style JSON per key; liberty is parsed off the main thread once. */
+    private val builtStyles = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+    private fun buildStyle(key: String): String = builtStyles.getOrPut(key) {
+        val liberty = appContext.assets.open(MapStyle.STYLE_ASSET).bufferedReader().use { it.readText() }
+        if (key == MapStyle.styleKey(night = true)) MapStyleJson.night(liberty) else MapStyleJson.day(liberty)
     }
 
     fun setMaxFps(fps: Int) = mapView.setMaximumFps(fps)
@@ -170,19 +180,34 @@ class LiveMapHost(
     }
 
     /** Re-engages follow mode after the user panned or zoomed away. */
-    fun recenter() = followCar()
+    fun recenter() = if (guiding) followForGuidance() else followCar()
 
-    private fun loadStyle(url: String) {
-        val readyMap = map ?: return
-        if (url == loadedStyleUrl) return
+    private fun loadStyle(key: String) {
+        if (map == null || key == loadedStyleUrl) return
         styleReady = false
-        readyMap.setStyle(Style.Builder().fromUri(url)) { style ->
-            loadedStyleUrl = url
-            applyLite(style)
-            styleReady = true
-            activateLocation(readyMap, style)
-            applyRoute(style) // a day/night switch reloads the style; keep the route
-        }
+        Thread {
+            val json = try {
+                buildStyle(key)
+            } catch (_: Exception) {
+                null
+            }
+            mapView.post {
+                val readyMap = map ?: return@post
+                if (destroyed || key != requestedStyleUrl) return@post
+                val builder = if (json != null) {
+                    Style.Builder().fromJson(json)
+                } else {
+                    Style.Builder().fromUri(MapStyle.TILE_HOST + "styles/liberty") // asset unreadable
+                }
+                readyMap.setStyle(builder) { style ->
+                    loadedStyleUrl = key
+                    applyLite(style)
+                    styleReady = true
+                    activateLocation(readyMap, style)
+                    applyRoute(style) // a day/night switch reloads the style; keep the route
+                }
+            }
+        }.apply { name = "map-style"; start() }
     }
 
     // ---- route line (in-app navigation) -------------------------------------
@@ -211,26 +236,35 @@ class LiveMapHost(
             style.addSource(
                 if (pinGeo != null) GeoJsonSource(DEST_SOURCE, pinGeo) else GeoJsonSource(DEST_SOURCE),
             )
+            // Widths grow with zoom: a slim line in overview, a bold road-wide
+            // band at driving zoom.
+            fun width(vararg stops: Pair<Float, Float>) = Expression.interpolate(
+                Expression.exponential(1.5f), Expression.zoom(),
+                *stops.map { (z, w) -> Expression.stop(z, w) }.toTypedArray(),
+            )
             val casing = LineLayer(ROUTE_CASING_LAYER, ROUTE_SOURCE).withProperties(
-                PropertyFactory.lineColor(Color.parseColor("#0B3D91")),
-                PropertyFactory.lineWidth(11f),
+                PropertyFactory.lineColor(Color.parseColor("#0A2A66")),
+                PropertyFactory.lineWidth(width(8f to 4f, 12f to 8f, 15f to 14f, 18f to 26f)),
                 PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
                 PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
             )
             val route = LineLayer(ROUTE_LAYER, ROUTE_SOURCE).withProperties(
-                PropertyFactory.lineColor(Color.parseColor("#2F7BFF")),
-                PropertyFactory.lineWidth(7f),
+                PropertyFactory.lineColor(Color.parseColor("#4C93FF")),
+                PropertyFactory.lineWidth(width(8f to 2.5f, 12f to 5f, 15f to 9f, 18f to 19f)),
                 PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
                 PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
             )
             val pin = CircleLayer(DEST_LAYER, DEST_SOURCE).withProperties(
-                PropertyFactory.circleRadius(9f),
-                PropertyFactory.circleColor(Color.parseColor("#E53935")),
+                PropertyFactory.circleRadius(11f),
+                PropertyFactory.circleColor(Color.parseColor("#FF5A52")),
                 PropertyFactory.circleStrokeColor(Color.WHITE),
-                PropertyFactory.circleStrokeWidth(3f),
+                PropertyFactory.circleStrokeWidth(4f),
+                PropertyFactory.circlePitchAlignment(Property.CIRCLE_PITCH_ALIGNMENT_MAP),
             )
-            // Under the car puck, above the roads.
-            val below = LocationComponentConstants.SHADOW_LAYER
+            // Above the roads but under the street names, so the route never
+            // hides the name of the road you are on; else under the car puck.
+            val labels = ROUTE_BELOW_LABEL_LAYER.takeIf { style.getLayer(it) != null }
+            val below = labels ?: LocationComponentConstants.SHADOW_LAYER
             if (style.getLayer(below) != null) {
                 style.addLayerBelow(casing, below)
                 style.addLayerBelow(route, below)
@@ -271,24 +305,55 @@ class LiveMapHost(
      * zoomWhileTracking() is ignored while that transition is still running.
      */
     fun followForGuidance() {
+        guiding = true
         val component = activeComponent() ?: return
         trackingDismissed = false
-        component.setCameraMode(CameraMode.TRACKING_GPS, 750L, MapStyle.GUIDANCE_ZOOM, null, null, null)
+        val speed = lastPushed?.speed?.times(3.6f)?.toInt()
+        guidanceZoom = MapStyle.guidanceZoomFor(speed)
+        component.renderMode = RenderMode.GPS
+        // Car low in the view, road ahead filling the screen.
+        val top = mapView.height * MapStyle.GUIDANCE_LOOK_AHEAD
+        component.paddingWhileTracking(doubleArrayOf(0.0, top, 0.0, 0.0), 750L)
+        component.setCameraMode(
+            CameraMode.TRACKING_GPS, 750L, guidanceZoom, null,
+            if (lite) MapStyle.GUIDANCE_TILT_LITE else MapStyle.GUIDANCE_TILT, null,
+        )
     }
 
     /** Back to following the car at normal driving zoom (navigation ended). */
     fun followCar() {
+        guiding = false
         val component = activeComponent() ?: return
         trackingDismissed = false
         val mode = cameraModeFor(lastPushed?.speed?.times(3.6f)?.toInt())
-        component.setCameraMode(mode, 750L, MapStyle.FOLLOW_ZOOM, null, null, null)
+        component.paddingWhileTracking(doubleArrayOf(0.0, 0.0, 0.0, 0.0), 750L)
+        component.setCameraMode(mode, 750L, MapStyle.FOLLOW_ZOOM, null, 0.0, null)
     }
+
+    /** True while turn-by-turn runs: the driving camera must not be undone by speed changes. */
+    private var guiding = false
+    private var guidanceZoom = MapStyle.GUIDANCE_ZOOM
 
     @SuppressLint("MissingPermission") // fed by AutoVerse's own permission-checked GPS; no engine here
     private fun activateLocation(readyMap: MapLibreMap, style: Style) {
         val component = readyMap.locationComponent
+        // A crisp blue puck with a white ring (arrow while moving), a faint
+        // accuracy halo, and no "stale" greying while parked at a signal.
+        val puck = LocationComponentOptions.builder(appContext)
+            .foregroundDrawable(com.autoverse.launcher.R.drawable.av_puck_dot)
+            .foregroundDrawableStale(com.autoverse.launcher.R.drawable.av_puck_dot)
+            .backgroundDrawable(com.autoverse.launcher.R.drawable.av_puck_dot)
+            .backgroundDrawableStale(com.autoverse.launcher.R.drawable.av_puck_dot)
+            .bearingDrawable(com.autoverse.launcher.R.drawable.av_puck_dot)
+            .gpsDrawable(com.autoverse.launcher.R.drawable.av_nav_arrow)
+            .accuracyColor(Color.parseColor("#4C93FF"))
+            .accuracyAlpha(0.08f)
+            .enableStaleState(false)
+            .elevation(4f)
+            .build()
         component.activateLocationComponent(
             LocationComponentActivationOptions.Builder(appContext, style)
+                .locationComponentOptions(puck)
                 .useDefaultLocationEngine(false)
                 .build(),
         )
@@ -309,8 +374,10 @@ class LiveMapHost(
         pendingLocation = null
         if (first != null) {
             push(component, first, first.speed.times(3.6f).toInt())
-            component.zoomWhileTracking(MapStyle.FOLLOW_ZOOM)
+            if (!guiding) component.zoomWhileTracking(MapStyle.FOLLOW_ZOOM)
         }
+        // A day/night switch reloads the style mid-trip: restore the driving view.
+        if (guiding) followForGuidance()
     }
 
     private fun push(component: LocationComponent, location: Location, speedKmh: Int?) {
@@ -318,13 +385,23 @@ class LiveMapHost(
         component.forceLocationUpdate(location)
         lastPushed = location
         rememberPosition(location)
-        if (!trackingDismissed) {
+        if (!trackingDismissed && guiding) {
+            // Keep the tilted, heading-up driving view even when stopped at
+            // a signal; only ease the zoom when the speed band changes.
+            if (component.cameraMode != CameraMode.TRACKING_GPS) component.cameraMode = CameraMode.TRACKING_GPS
+            component.renderMode = RenderMode.GPS
+            val zoom = MapStyle.guidanceZoomFor(speedKmh)
+            if (zoom != guidanceZoom) {
+                guidanceZoom = zoom
+                component.zoomWhileTracking(zoom, 1_200L)
+            }
+        } else if (!trackingDismissed) {
             val wanted = cameraModeFor(speedKmh)
             if (component.cameraMode != wanted) component.cameraMode = wanted
             val moving = MapStyle.rotateWithHeading(speedKmh)
             component.renderMode = if (moving) RenderMode.GPS else RenderMode.NORMAL
         }
-        if (firstFix) component.zoomWhileTracking(MapStyle.FOLLOW_ZOOM)
+        if (firstFix && !guiding) component.zoomWhileTracking(MapStyle.FOLLOW_ZOOM)
     }
 
     /** Keeps the car's position (on this unit only) so the next start opens there. */
@@ -399,6 +476,9 @@ private const val DEST_SOURCE = "autoverse-destination"
 private const val ROUTE_LAYER = "autoverse-route-line"
 private const val ROUTE_CASING_LAYER = "autoverse-route-casing"
 private const val DEST_LAYER = "autoverse-destination-pin"
+
+/** First road-name layer in liberty; the route is drawn just below it. */
+private const val ROUTE_BELOW_LABEL_LAYER = "highway-name-path"
 
 private const val PREFS = "autoverse_map"
 private const val KEY_LAT = "last_lat"

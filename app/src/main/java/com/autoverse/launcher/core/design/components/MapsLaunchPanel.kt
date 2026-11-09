@@ -74,10 +74,11 @@ fun MapsLaunchPanel(
     // previews and tests fall through to the hand-off layout below.
     val navigation = LocalInAppNavigation.current
     if (navigation != null) {
-        // No header: the map itself is the panel (more map, less chrome).
+        // No header and no inner frame: the map runs edge to edge in its
+        // panel (one rounded shape, not a card inside a card).
         CockpitCard(
             modifier = modifier,
-            contentPadding = PaddingValues(AutoVerseSpacing.sm),
+            contentPadding = PaddingValues(0.dp),
         ) {
             InAppNavigationMapSync(navigation)
             Box(
@@ -99,11 +100,14 @@ fun MapsLaunchPanel(
                     compact = compact,
                 )
             }
-            InAppNavigationSearchRow(
-                controller = navigation,
-                onOpenGoogleMaps = onOpenMaps,
-                showRecents = !compact,
-            )
+            Column(Modifier.padding(horizontal = AutoVerseSpacing.sm)) {
+                InAppNavigationSearchRow(
+                    controller = navigation,
+                    onOpenGoogleMaps = onOpenMaps,
+                    showRecents = !compact,
+                )
+                Spacer(Modifier.size(AutoVerseSpacing.sm))
+            }
         }
         return
     }

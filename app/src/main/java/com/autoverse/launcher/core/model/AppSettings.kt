@@ -1,18 +1,15 @@
 package com.autoverse.launcher.core.model
 
+/**
+ * Four considered themes rather than a gallery of skins. Retired theme IDs
+ * saved by older versions are unknown to [SettingsMapping] and fall back to
+ * the default (Cobalt) on load.
+ */
 enum class AutoVerseThemeId(val displayName: String, val premium: Boolean = false) {
     COBALT("Cobalt"),
     OBSIDIAN("Obsidian"),
-    NEON_PULSE("Neon Pulse"),
     ATELIER("Atelier"),
     APEX("Apex"),
-    SAKURA("Sakura", premium = true),
-    NEON_TOKYO("Neon Tokyo", premium = true),
-    SHONEN("Shonen", premium = true),
-    GOTHAM("Gotham", premium = true),
-    HOT_ROD("Hot Rod", premium = true),
-    FORTRESS("Fortress", premium = true),
-    WEB_RUSH("Web Rush", premium = true),
 }
 
 enum class PerformanceProfile(val displayName: String) {

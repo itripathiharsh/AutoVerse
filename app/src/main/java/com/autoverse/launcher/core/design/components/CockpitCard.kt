@@ -43,8 +43,10 @@ fun CockpitCard(
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
 
+    // Borderless: the panel separates from the near-black background by tone.
+    // A barely-there top-down sheen gives depth on capable units.
     val surface = if (spec.flatSurfaces) {
-        Modifier.background(colors.surfaceRaised)
+        Modifier.background(colors.surface)
     } else {
         Modifier.background(Brush.verticalGradient(listOf(colors.surfaceRaised, colors.surface)))
     }
@@ -67,10 +69,12 @@ fun CockpitCard(
 
     Column(
         modifier = clickable
-            .border(
-                width = AutoVerseBorders.hairline,
-                color = if (onClick != null && enabled && pressed) colors.accent else colors.outline,
-                shape = shape,
+            .then(
+                if (onClick != null && enabled && pressed) {
+                    Modifier.border(AutoVerseBorders.emphasis, colors.accent, shape)
+                } else {
+                    Modifier
+                },
             )
             .padding(contentPadding),
         content = content,

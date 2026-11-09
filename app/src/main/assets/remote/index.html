@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#07080A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="referrer" content="no-referrer">
+<title>AutoVerse Remote</title>
+<style>
+  :root {
+    --bg: #07080A; --surface: #121418; --raised: #1A1D22; --high: #24282F;
+    --text: #F2F4F7; --text2: #A3AAB5; --faint: #828A96;
+    --accent: #4C93FF; --ok: #3DD68C; --danger: #FF6B66;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font-family: Inter, -apple-system, "SF Pro Text", Roboto, "Noto Sans", sans-serif; }
+  main { max-width: 480px; margin: 0 auto; padding: max(16px, env(safe-area-inset-top)) 16px 32px; }
+  header { display: flex; align-items: center; justify-content: space-between; margin: 4px 2px 16px; }
+  header h1 { font-size: 20px; font-weight: 600; letter-spacing: -0.3px; margin: 0; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--faint); display: inline-block; margin-right: 8px; }
+  .dot.on { background: var(--ok); }
+  #status { font-size: 13px; color: var(--text2); display: flex; align-items: center; }
+  .card { background: var(--surface); border-radius: 20px; padding: 18px; margin-bottom: 12px; }
+  .label { font-size: 12px; font-weight: 600; color: var(--faint); letter-spacing: .6px; text-transform: uppercase; margin-bottom: 10px; }
+  #title { font-size: 22px; font-weight: 600; letter-spacing: -0.4px; line-height: 1.25; min-height: 28px;
+    overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  #artist { font-size: 15px; color: var(--text2); margin-top: 4px; min-height: 19px; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .controls { margin-top: 18px; }
+  button { font: inherit; border: 0; color: var(--text); background: var(--high); border-radius: 999px;
+    cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+  button:active { transform: scale(.96); filter: brightness(1.15); }
+  .round { width: 64px; height: 64px; }
+  .play { width: 84px; height: 84px; background: var(--text); color: var(--bg); }
+  .vol { flex: 1; height: 52px; font-size: 15px; font-weight: 600; gap: 8px; }
+  svg { width: 28px; height: 28px; fill: currentColor; }
+  .play svg { width: 38px; height: 38px; }
+  .vol svg { width: 22px; height: 22px; }
+  form { display: flex; gap: 8px; }
+  input { flex: 1; min-width: 0; font: inherit; font-size: 16px; color: var(--text); background: var(--raised);
+    border: 1px solid rgba(255,255,255,.08); border-radius: 14px; padding: 14px; outline: none; }
+  input:focus { border-color: var(--accent); }
+  .go { padding: 0 20px; background: var(--accent); color: #06101F; font-weight: 600; border-radius: 14px; }
+  .hint { font-size: 13px; color: var(--faint); margin-top: 10px; line-height: 1.45; }
+  #trip .eta { font-size: 30px; font-weight: 600; color: var(--ok); letter-spacing: -0.6px; }
+  #trip .dest { font-size: 16px; color: var(--text); margin-top: 2px; }
+  #trip .rem { font-size: 14px; color: var(--text2); margin-top: 2px; }
+  .end { height: 44px; padding: 0 18px; background: var(--danger); color: #1B0605; font-weight: 600; }
+  #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--high);
+    color: var(--text); padding: 12px 18px; border-radius: 14px; font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  #toast.show { opacity: 1; }
+  #locked { display: none; text-align: center; padding: 48px 12px; color: var(--text2); line-height: 1.5; }
+  #locked h2 { color: var(--text); font-size: 20px; font-weight: 600; margin: 0 0 8px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>AutoVerse Remote</h1>
+    <div id="status"><span class="dot" id="dot"></span><span id="statusText">Connecting…</span></div>
+  </header>
+
+  <section id="app">
+    <div class="card">
+      <div class="label">Now playing</div>
+      <div id="title">—</div>
+      <div id="artist"></div>
+      <div class="row controls">
+        <button class="round" data-c="prev" aria-label="Previous"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg></button>
+        <button class="round play" data-c="toggle" aria-label="Play or pause" id="playBtn"><svg viewBox="0 0 24 24" id="playIcon"><path d="M8 5v14l11-7z"/></svg></button>
+        <button class="round" data-c="next" aria-label="Next"><svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg></button>
+      </div>
+      <div class="row controls">
+        <button class="vol" data-c="voldown" aria-label="Volume down"><svg viewBox="0 0 24 24"><path d="M18.5 12A4.5 4.5 0 0 0 16 8v8a4.5 4.5 0 0 0 2.5-4zM5 9v6h4l5 5V4L9 9H5z"/></svg>Vol −</button>
+        <button class="vol" data-c="volup" aria-label="Volume up"><svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z"/></svg>Vol +</button>
+      </div>
+    </div>
+
+    <div class="card" id="trip" style="display:none">
+      <div class="label">On the way</div>
+      <div class="row">
+        <div>
+          <div class="eta" id="eta"></div>
+          <div class="dest" id="dest"></div>
+          <div class="rem" id="rem"></div>
+        </div>
+        <button class="end" data-c="endtrip">End</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="label">Send a place to the car</div>
+      <form id="goForm" autocomplete="off">
+        <input id="place" placeholder="Place, address or Google Maps link" enterkeyhint="go">
+        <button class="go" type="submit">Go</button>
+      </form>
+      <div class="hint">Tip: in Google Maps tap <b>Share</b> → <b>Copy link</b>, paste it here and tap Go. The route opens on the car's screen.</div>
+    </div>
+  </section>
+
+  <section id="locked">
+    <h2>Connect to your car</h2>
+    Scan the QR code on the car screen (Car → Phone),<br>or type the code shown under it:
+    <form id="codeForm" autocomplete="off" style="margin-top:18px">
+      <input id="codeInput" placeholder="Code from the car screen" autocapitalize="off" spellcheck="false">
+      <button class="go" type="submit">Connect</button>
+    </form>
+  </section>
+</main>
+<div id="toast"></div>
+<script>
+(function () {
+  var code = (location.hash || "").replace("#", "");
+  if (code) { try { localStorage.setItem("av_code", code); } catch (e) {} }
+  else { try { code = localStorage.getItem("av_code") || ""; } catch (e) {} }
+  // Keep the code out of the address bar once stored.
+  if (location.hash) { try { history.replaceState(null, "", location.pathname); } catch (e) {} }
+
+  var $ = function (id) { return document.getElementById(id); };
+  var PLAY = '<path d="M8 5v14l11-7z"/>', PAUSE = '<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>';
+
+  function toast(msg) {
+    var t = $("toast"); t.textContent = msg; t.className = "show";
+    clearTimeout(toast.timer); toast.timer = setTimeout(function () { t.className = ""; }, 1800);
+  }
+  function api(path, opts) {
+    opts = opts || {}; opts.headers = opts.headers || {};
+    opts.headers["X-AutoVerse-Code"] = code;
+    return fetch(path, opts).then(function (r) {
+      if (r.status === 403) { lock(); throw new Error("code"); }
+      return r.json();
+    });
+  }
+  function lock() { $("app").style.display = "none"; $("locked").style.display = "block"; setOnline(false, "Not connected"); }
+  function setOnline(on, text) { $("dot").className = on ? "dot on" : "dot"; $("statusText").textContent = text; }
+
+  function render(s) {
+    setOnline(true, "Connected to car");
+    $("title").textContent = s.hasMedia ? (s.title || s.app || "Playing") : "Nothing playing";
+    $("artist").textContent = s.hasMedia ? (s.artist || (s.title ? (s.app || "") : "")) : "Start music on the car or your phone";
+    $("playIcon").innerHTML = s.playing ? PAUSE : PLAY;
+    if (s.navigating) {
+      $("trip").style.display = "block";
+      $("eta").textContent = s.arrival ? ("Arrive " + s.arrival) : "Navigating";
+      $("dest").textContent = s.destination || "";
+      $("rem").textContent = s.remaining || "";
+    } else { $("trip").style.display = "none"; }
+  }
+  function poll() {
+    if (!code) { lock(); return; }
+    api("/api/state").then(render).catch(function (e) {
+      if (e.message !== "code") setOnline(false, "Car not reachable");
+    }).then(function () { setTimeout(poll, document.hidden ? 6000 : 2000); });
+  }
+
+  document.querySelectorAll("button[data-c]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var c = b.getAttribute("data-c");
+      if (navigator.vibrate) navigator.vibrate(12);
+      api("/api/cmd?c=" + encodeURIComponent(c), { method: "POST" })
+        .then(function () { if (c === "endtrip") toast("Trip ended"); setTimeout(poll, 350); })
+        .catch(function () {});
+    });
+  });
+  $("goForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var text = $("place").value.trim();
+    if (!text) return;
+    api("/api/go", { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: text })
+      .then(function () { $("place").value = ""; $("place").blur(); toast("Sent to the car"); })
+      .catch(function () { toast("Couldn't reach the car"); });
+  });
+  $("codeForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var typed = $("codeInput").value.replace(/\s+/g, "").toLowerCase();
+    if (!typed) return;
+    code = typed;
+    try { localStorage.setItem("av_code", code); } catch (err) {}
+    $("locked").style.display = "none"; $("app").style.display = "block";
+    poll();
+  });
+  poll();
+})();
+</script>
+</body>
+</html>

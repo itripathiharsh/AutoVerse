@@ -52,10 +52,8 @@ data class ThemeIconSpec(
 }
 
 /**
- * The icon language for every registered theme. Mapping to the theme PRD's
- * six identities: Gotham = Dark Knight shields, Hot Rod = Stark radial,
- * Neon Tokyo = hex neon, Apex = precision squares, Web Rush/Shonen = sport
- * angular, Cobalt/Fortress = soft rounded.
+ * The icon language for every registered theme: Cobalt and Atelier soft
+ * rounded, Obsidian and Apex precision squares.
  */
 private val THEME_ICON_SPECS: Map<AutoVerseThemeId, ThemeIconSpec> = mapOf(
     AutoVerseThemeId.COBALT to ThemeIconSpec(
@@ -71,13 +69,6 @@ private val THEME_ICON_SPECS: Map<AutoVerseThemeId, ThemeIconSpec> = mapOf(
         glow = IconGlow.NONE,
         selectedState = IconSelectedState.EDGE,
     ),
-    AutoVerseThemeId.NEON_PULSE to ThemeIconSpec(
-        IconContainerShape.HEXAGONAL_NEON,
-        borderStyle = IconBorderStyle.ACCENT,
-        backgroundStyle = IconBackgroundStyle.TINTED,
-        glow = IconGlow.RESTRAINED,
-        selectedState = IconSelectedState.RING,
-    ),
     AutoVerseThemeId.ATELIER to ThemeIconSpec(
         IconContainerShape.SOFT_ROUNDED,
         borderStyle = IconBorderStyle.OUTLINE,
@@ -90,57 +81,6 @@ private val THEME_ICON_SPECS: Map<AutoVerseThemeId, ThemeIconSpec> = mapOf(
         borderWidthDp = 1f,
         backgroundStyle = IconBackgroundStyle.RAISED,
         selectedState = IconSelectedState.INDICATOR,
-    ),
-    AutoVerseThemeId.SAKURA to ThemeIconSpec(
-        IconContainerShape.SOFT_ROUNDED,
-        borderStyle = IconBorderStyle.ACCENT,
-        backgroundStyle = IconBackgroundStyle.TINTED,
-        glow = IconGlow.RESTRAINED,
-        selectedState = IconSelectedState.RING,
-    ),
-    AutoVerseThemeId.NEON_TOKYO to ThemeIconSpec(
-        IconContainerShape.HEXAGONAL_NEON,
-        borderStyle = IconBorderStyle.ACCENT,
-        backgroundStyle = IconBackgroundStyle.INK,
-        glow = IconGlow.RESTRAINED,
-        selectedState = IconSelectedState.RING,
-    ),
-    AutoVerseThemeId.SHONEN to ThemeIconSpec(
-        IconContainerShape.SPORT_ANGULAR,
-        borderStyle = IconBorderStyle.ACCENT,
-        backgroundStyle = IconBackgroundStyle.TINTED,
-        selectedState = IconSelectedState.EDGE,
-    ),
-    AutoVerseThemeId.GOTHAM to ThemeIconSpec(
-        IconContainerShape.ANGULAR_SHIELD,
-        borderStyle = IconBorderStyle.ACCENT,
-        borderWidthDp = 1.2f,
-        backgroundStyle = IconBackgroundStyle.INK,
-        glow = IconGlow.RESTRAINED,
-        selectedState = IconSelectedState.EDGE,
-    ),
-    AutoVerseThemeId.HOT_ROD to ThemeIconSpec(
-        IconContainerShape.CIRCULAR_RADIAL,
-        borderStyle = IconBorderStyle.ACCENT,
-        backgroundStyle = IconBackgroundStyle.TINTED,
-        glow = IconGlow.LUMINOUS,
-        selectedState = IconSelectedState.RING,
-    ),
-    AutoVerseThemeId.FORTRESS to ThemeIconSpec(
-        IconContainerShape.SOFT_ROUNDED,
-        borderStyle = IconBorderStyle.OUTLINE,
-        borderWidthDp = 1f,
-        backgroundStyle = IconBackgroundStyle.RAISED,
-        glow = IconGlow.NONE,
-        iconScale = 0.95f,
-        selectedState = IconSelectedState.INDICATOR,
-    ),
-    AutoVerseThemeId.WEB_RUSH to ThemeIconSpec(
-        IconContainerShape.SPORT_ANGULAR,
-        borderStyle = IconBorderStyle.ACCENT,
-        backgroundStyle = IconBackgroundStyle.RAISED,
-        glow = IconGlow.RESTRAINED,
-        selectedState = IconSelectedState.EDGE,
     ),
 )
 

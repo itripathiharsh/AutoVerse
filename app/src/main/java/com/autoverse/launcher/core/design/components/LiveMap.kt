@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.autoverse.launcher.core.design.LocalAutoVerseColors
@@ -237,13 +238,17 @@ private fun MapOverlayText(text: String, modifier: Modifier = Modifier, small: B
     val colors = LocalAutoVerseColors.current
     Text(
         text = text,
-        style = if (small) MaterialTheme.typography.labelSmall else MaterialTheme.typography.labelMedium,
-        color = colors.textSecondary,
+        style = if (small) {
+            MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, letterSpacing = 0.sp)
+        } else {
+            MaterialTheme.typography.labelMedium
+        },
+        color = if (small) colors.textFaint else colors.textSecondary,
         maxLines = 1,
         modifier = modifier
             .padding(AutoVerseSpacing.xxs)
             .clip(AutoVerseShapes.small)
-            .background(colors.surface.copy(alpha = 0.85f))
-            .padding(horizontal = AutoVerseSpacing.xs, vertical = 2.dp),
+            .background(colors.surface.copy(alpha = if (small) 0.6f else 0.85f))
+            .padding(horizontal = AutoVerseSpacing.xs, vertical = if (small) 1.dp else 3.dp),
     )
 }

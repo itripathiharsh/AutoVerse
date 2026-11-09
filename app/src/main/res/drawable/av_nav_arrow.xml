@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Driving puck: a blue navigation chevron with a white outline, pointing up (heading). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="44dp"
+    android:height="44dp"
+    android:viewportWidth="44"
+    android:viewportHeight="44">
+    <!-- soft shadow -->
+    <path
+        android:fillColor="#59000000"
+        android:pathData="M22,5 L37,38 L22,30.5 L7,38 Z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M22,3 L36.5,36 L22,28.8 L7.5,36 Z" />
+    <path
+        android:fillColor="#FF4C93FF"
+        android:pathData="M22,8.2 L32.4,31.6 L22,26.4 L11.6,31.6 Z" />
+</vector>

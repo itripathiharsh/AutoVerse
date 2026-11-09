@@ -145,9 +145,9 @@ class SettingsScreenTest {
         val selected = AtomicReference<AutoVerseThemeId?>(null)
         setSettings(onSetTheme = { selected.set(it) })
 
-        clickNode("Neon Pulse")
+        clickNode("Atelier")
 
-        assertEquals(AutoVerseThemeId.NEON_PULSE, selected.get())
+        assertEquals(AutoVerseThemeId.ATELIER, selected.get())
     }
 
     @Test

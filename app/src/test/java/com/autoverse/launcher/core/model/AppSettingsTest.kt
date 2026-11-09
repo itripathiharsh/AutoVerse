@@ -29,22 +29,16 @@ class AppSettingsTest {
     }
 
     @Test
-    fun `theme labels cover the twelve cabin themes in picker order`() {
+    fun `theme labels cover the four cabin themes in picker order`() {
         assertEquals(
-            listOf("Cobalt", "Obsidian", "Neon Pulse", "Atelier", "Apex",
-                "Sakura", "Neon Tokyo", "Shonen", "Gotham", "Hot Rod",
-                "Fortress", "Web Rush"),
+            listOf("Cobalt", "Obsidian", "Atelier", "Apex"),
             AutoVerseThemeId.entries.map { it.displayName },
         )
     }
 
     @Test
-    fun `premium flag marks exactly the seven premium themes`() {
-        assertEquals(
-            listOf("Sakura", "Neon Tokyo", "Shonen", "Gotham", "Hot Rod",
-                "Fortress", "Web Rush"),
-            AutoVerseThemeId.entries.filter { it.premium }.map { it.displayName },
-        )
+    fun `every theme is included - none locked behind premium`() {
+        assertTrue(AutoVerseThemeId.entries.none { it.premium })
     }
 
     @Test

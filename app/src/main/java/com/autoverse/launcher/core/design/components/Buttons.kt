@@ -26,19 +26,25 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.dp
 import com.autoverse.launcher.core.design.LocalAutoVerseColors
 import com.autoverse.launcher.core.design.tokens.AutoVerseBorders
 import com.autoverse.launcher.core.design.tokens.AutoVerseIcons
 import com.autoverse.launcher.core.design.tokens.AutoVerseShapes
 import com.autoverse.launcher.core.design.tokens.AutoVerseSpacing
 
-/** Filled accent action with comfortable car-scale touch height. */
+/** What a filled action means: the one main action, or ending/removing something. */
+enum class ActionTone { ACCENT, DANGER }
+
+/** Filled action with comfortable car-scale touch height; one per panel at most. */
 @Composable
 fun PrimaryAction(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    tone: ActionTone = ActionTone.ACCENT,
+    icon: ImageVector? = null,
 ) {
     val colors = LocalAutoVerseColors.current
     Button(
@@ -47,16 +53,20 @@ fun PrimaryAction(
         enabled = enabled,
         shape = AutoVerseShapes.pill,
         colors = ButtonDefaults.buttonColors(
-            containerColor = colors.accent,
+            containerColor = if (tone == ActionTone.DANGER) colors.danger else colors.accent,
             contentColor = colors.onAccent,
             disabledContainerColor = colors.disabledContainer,
             disabledContentColor = colors.disabledContent,
         ),
         contentPadding = PaddingValues(
-            horizontal = AutoVerseSpacing.xl,
+            horizontal = AutoVerseSpacing.lg,
             vertical = AutoVerseSpacing.sm,
         ),
     ) {
+        if (icon != null) {
+            Icon(icon, contentDescription = null, modifier = Modifier.size(AutoVerseIcons.standard))
+            androidx.compose.foundation.layout.Spacer(Modifier.size(AutoVerseSpacing.xs))
+        }
         Text(text = text, style = MaterialTheme.typography.labelLarge)
     }
 }
@@ -97,7 +107,7 @@ fun TransportButton(
         pressed && variant == TransportVariant.PRIMARY -> lerp(colors.accent, colors.onAccent, 0.15f)
         pressed -> colors.surfaceHighlight
         variant == TransportVariant.PRIMARY -> colors.accent
-        else -> colors.surfaceRaised
+        else -> colors.surfaceHighlight
     }
     val contentColor = if (enabled) {
         if (variant == TransportVariant.PRIMARY) colors.onAccent else colors.textPrimary
@@ -110,13 +120,6 @@ fun TransportButton(
             .size(buttonSize)
             .clip(CircleShape)
             .background(containerColor)
-            .then(
-                if (variant == TransportVariant.SECONDARY) {
-                    Modifier.border(AutoVerseBorders.hairline, colors.outline, CircleShape)
-                } else {
-                    Modifier
-                },
-            )
             .clickable(
                 enabled = enabled,
                 role = Role.Button,
@@ -135,16 +138,27 @@ fun TransportButton(
     }
 }
 
-/** Borderless accent text action for low-emphasis operations (e.g. "Change"). */
+/**
+ * Borderless text action for low-emphasis operations (e.g. "Change").
+ * [quiet] draws it in the neutral text colour, for secondary actions that
+ * sit next to a filled primary one, so only one thing on a panel is blue.
+ */
 @Composable
 fun TextAction(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    icon: ImageVector? = null,
+    quiet: Boolean = false,
 ) {
     val colors = LocalAutoVerseColors.current
-    Box(
+    val tint = when {
+        !enabled -> colors.disabledContent
+        quiet -> colors.textPrimary
+        else -> colors.accent
+    }
+    androidx.compose.foundation.layout.Row(
         modifier = modifier
             .defaultMinSize(minHeight = AutoVerseSpacing.touchMin)
             .clip(AutoVerseShapes.pill)
@@ -155,12 +169,16 @@ fun TextAction(
                 interactionSource = remember { MutableInteractionSource() },
             ) { onClick() }
             .padding(horizontal = AutoVerseSpacing.sm),
-        contentAlignment = Alignment.Center,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (icon != null) {
+            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
+            androidx.compose.foundation.layout.Spacer(Modifier.size(6.dp))
+        }
         Text(
             text = text,
             style = MaterialTheme.typography.labelLarge,
-            color = if (enabled) colors.accent else colors.disabledContent,
+            color = tint,
         )
     }
 }

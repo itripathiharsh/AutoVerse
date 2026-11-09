@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Parked/slow puck: a blue dot with a white ring. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="22dp"
+    android:height="22dp"
+    android:viewportWidth="22"
+    android:viewportHeight="22">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M11,1 A10,10 0 1,1 10.99,1 Z" />
+    <path
+        android:fillColor="#FF4C93FF"
+        android:pathData="M11,4 A7,7 0 1,1 10.99,4 Z" />
+</vector>

@@ -31,6 +31,7 @@ import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.DeveloperBoard
 import androidx.compose.material.icons.outlined.LocalGasStation
 import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.Route
 import androidx.compose.material.icons.outlined.Sensors
 import androidx.compose.material.icons.outlined.Speaker
@@ -91,6 +92,7 @@ private enum class CarSection(val title: String, val icon: ImageVector) {
     REMINDERS("Reminders", Icons.Outlined.Notifications),
     SPEAKERS("Speaker test", Icons.Outlined.Speaker),
     HEALTH("Head unit check", Icons.Outlined.DeveloperBoard),
+    PHONE("Phone", Icons.Outlined.PhoneAndroid),
 }
 
 /** The Car page: everything about the car and the unit, in one place. */
@@ -147,6 +149,7 @@ fun CarScreen(
                     CarSection.REMINDERS -> RemindersSection(car)
                     CarSection.SPEAKERS -> SpeakerSection(car)
                     CarSection.HEALTH -> HealthSection(car, onOpenDiagnostics)
+                    CarSection.PHONE -> PhoneSection()
                 }
             }
         }

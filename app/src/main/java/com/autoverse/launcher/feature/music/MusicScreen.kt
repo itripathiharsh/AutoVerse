@@ -204,15 +204,21 @@ private fun NowPlayingPanel(
                 modifier = Modifier
                     .fillMaxHeight()
                     .aspectRatio(1f, matchHeightConstraintsFirst = true)
-                    .clip(AutoVerseShapes.small)
-                    .background(colors.surfaceHighlight),
+                    .clip(AutoVerseShapes.tile)
+                    .background(
+                        if (artwork != null) {
+                            androidx.compose.ui.graphics.Brush.linearGradient(listOf(colors.surfaceHighlight, colors.surfaceHighlight))
+                        } else {
+                            androidx.compose.ui.graphics.Brush.linearGradient(listOf(colors.accent.copy(alpha = 0.5f), colors.surfaceHighlight))
+                        },
+                    ),
                 contentAlignment = Alignment.Center,
             ) {
                 val art = artwork
                 if (art != null) {
                     Image(bitmap = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                 } else {
-                    Icon(Icons.Outlined.MusicNote, contentDescription = null, tint = colors.textFaint, modifier = Modifier.size(72.dp))
+                    Icon(Icons.Outlined.MusicNote, contentDescription = null, tint = colors.textPrimary.copy(alpha = 0.85f), modifier = Modifier.size(72.dp))
                 }
             }
         }
@@ -225,21 +231,26 @@ private fun NowPlayingPanel(
                 PrimaryAction(text = "Allow", onClick = { openMediaAccessSettings(context) })
             }
             is MediaUiState.Active -> {
+                val heading = active?.title ?: active?.appLabel ?: "Playing"
                 Text(
-                    active?.title ?: active?.appLabel ?: "Playing",
+                    heading,
                     style = MaterialTheme.typography.titleLarge,
                     color = colors.textPrimary,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Text(
-                    listOfNotNull(state.artist, state.album).joinToString(" · ").ifBlank { state.appLabel ?: "" },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = colors.textSecondary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                // Artist · album; the app's name is already on the "from" line below.
+                val detail = listOfNotNull(state.artist, state.album).joinToString(" · ")
+                if (detail.isNotBlank() && detail != heading) {
+                    Text(
+                        detail,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colors.textSecondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         "from ${state.appLabel ?: state.packageName}",
@@ -456,13 +467,31 @@ private fun LocalLibrary(music: MusicController, library: com.autoverse.launcher
             PrimaryAction(text = "Shuffle all", onClick = { music.shuffleLocal(filtered) })
         }
         Spacer(Modifier.size(AutoVerseSpacing.xs))
-        Row(horizontalArrangement = Arrangement.spacedBy(AutoVerseSpacing.xs)) {
+        // Tabs: the selected one is bright with an accent underline; the others
+        // are quiet (not blue links, and never a "disabled"-looking grey).
+        Row(horizontalArrangement = Arrangement.spacedBy(AutoVerseSpacing.md)) {
             LibraryView.entries.forEach { v ->
-                TextAction(
-                    text = v.name.lowercase().replaceFirstChar { it.uppercase() },
-                    onClick = { view = v; openGroup = null },
-                    enabled = view != v,
-                )
+                val selected = view == v
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .clip(AutoVerseShapes.small)
+                        .clickable { view = v; openGroup = null }
+                        .padding(horizontal = AutoVerseSpacing.xs, vertical = AutoVerseSpacing.xs),
+                ) {
+                    Text(
+                        v.name.lowercase().replaceFirstChar { it.uppercase() },
+                        style = MaterialTheme.typography.titleSmall,
+                        color = if (selected) colors.textPrimary else colors.textSecondary,
+                    )
+                    Spacer(Modifier.size(6.dp))
+                    Box(
+                        Modifier
+                            .size(width = 24.dp, height = 3.dp)
+                            .clip(AutoVerseShapes.pill)
+                            .background(if (selected) colors.accent else androidx.compose.ui.graphics.Color.Transparent),
+                    )
+                }
             }
         }
         val group = openGroup

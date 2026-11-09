@@ -10,6 +10,7 @@ import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -61,10 +62,12 @@ import com.autoverse.launcher.feature.probe.MapEmbedProbeScreen
 import com.autoverse.launcher.core.permissions.CarSetupStatus
 import com.autoverse.launcher.core.design.components.LocalOpenMusic
 import com.autoverse.launcher.core.design.components.LocalOpenCar
+import com.autoverse.launcher.core.design.components.LocalRailStatus
 import com.autoverse.launcher.core.car.CarController
 import com.autoverse.launcher.core.car.DriveSession
 import com.autoverse.launcher.core.media.MediaUiState
 import com.autoverse.launcher.core.media.isPlaying
+import com.autoverse.launcher.core.media.MediaCommand
 import androidx.compose.runtime.rememberUpdatedState
 import com.autoverse.launcher.feature.car.CarScreen
 import androidx.compose.ui.graphics.graphicsLayer
@@ -91,6 +94,7 @@ fun AppRoot(
     car: CarController = viewModel(),
 ) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val settingsLoaded by viewModel.settingsLoaded.collectAsStateWithLifecycle()
     val performanceSpec by viewModel.performanceSpec.collectAsStateWithLifecycle()
     val frameSnapshot by viewModel.frameSnapshot.collectAsStateWithLifecycle()
     val appListState by viewModel.appListState.collectAsStateWithLifecycle()
@@ -111,6 +115,7 @@ fun AppRoot(
     val settingsStoreReadable by viewModel.settingsStoreReadable.collectAsStateWithLifecycle()
     val speedometerData by viewModel.speedometerData.collectAsStateWithLifecycle()
     val weatherState by viewModel.weatherState.collectAsStateWithLifecycle()
+    val railNow by viewModel.now.collectAsStateWithLifecycle()
     val obdState by viewModel.obdState.collectAsStateWithLifecycle()
     val obdPairedAdapters by viewModel.obdPairedAdapters.collectAsStateWithLifecycle()
     val obdDtcState by viewModel.obdDtcState.collectAsStateWithLifecycle()
@@ -128,12 +133,25 @@ fun AppRoot(
 
     var screen by rememberSaveable { mutableStateOf(Screen.HOME) }
     var editingHome by rememberSaveable { mutableStateOf(false) }
-    FullScreenEffect(enabled = settings.fullScreen)
+    // Not during first-time setup: the system bars stay put (and padded) so
+    // setup's buttons and the permission screens are never hidden under them.
+    FullScreenEffect(enabled = settings.fullScreen && settings.onboardingComplete)
 
     // Entry-level units (< 3 GB RAM): no fades or colour animations at all —
     // every frame goes to the map and the controls.
     val entryLevelUnit = remember { isEntryLevelUnit(viewModel.getApplication()) }
     val reduceMotion = settings.reducedMotion || entryLevelUnit
+
+    // A place shared from Google Maps / an opened maps link → route on our map.
+    val incomingLocation by IncomingLocation.pending.collectAsStateWithLifecycle()
+    LaunchedEffect(incomingLocation, settings.onboardingComplete) {
+        if (incomingLocation != null && settings.onboardingComplete) {
+            IncomingLocation.consume()?.let { text ->
+                screen = Screen.HOME
+                navigation.openShared(text)
+            }
+        }
+    }
 
     // New drive (car switched on): offer to continue an unfinished trip and
     // resume the music that was playing when the car was switched off.
@@ -164,6 +182,70 @@ fun AppRoot(
         }
         driveLifecycle.lifecycle.addObserver(observer)
         onDispose { driveLifecycle.lifecycle.removeObserver(observer) }
+    }
+
+    // AutoVerse Remote (optional, Car → Phone): what the driver's phone sees
+    // and may do. The server itself only runs while the switch is on.
+    DisposableEffect(navigation) {
+        val remote = com.autoverse.launcher.core.remote.PhoneRemoteController.get(driveContext)
+        val audio = driveContext.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+        remote.attach(object : com.autoverse.launcher.core.remote.RemoteBridge {
+            override fun state(): com.autoverse.launcher.core.remote.RemoteState {
+                val media = latestMedia as? MediaUiState.Active
+                val trip = navigation.state.value as? com.autoverse.launcher.core.routing.NavState.Guiding
+                val remainingS = trip?.let { it.progress?.remainingSeconds ?: it.route.totalSeconds }
+                val remainingM = trip?.let { it.progress?.remainingMeters ?: it.route.totalMeters }
+                return com.autoverse.launcher.core.remote.RemoteState(
+                    hasMedia = media != null,
+                    title = media?.title,
+                    artist = media?.artist,
+                    app = media?.appLabel,
+                    playing = media?.status?.isPlaying == true,
+                    navigating = trip != null,
+                    destination = trip?.place?.name,
+                    arrival = remainingS?.let {
+                        java.time.LocalTime.now().plusSeconds(it.toLong()).format(
+                            java.time.format.DateTimeFormatter.ofPattern(if (latestSettings.clock24h) "HH:mm" else "h:mm a"),
+                        )
+                    },
+                    remaining = if (remainingS != null && remainingM != null) {
+                        "${com.autoverse.launcher.core.routing.formatDuration(remainingS)} · " +
+                            com.autoverse.launcher.core.routing.formatDistance(remainingM)
+                    } else {
+                        null
+                    },
+                )
+            }
+
+            override fun command(command: com.autoverse.launcher.core.remote.RemoteCommand) {
+                driveScope.launch {
+                    when (command) {
+                        com.autoverse.launcher.core.remote.RemoteCommand.TOGGLE -> {
+                            val status = (latestMedia as? MediaUiState.Active)?.status
+                            viewModel.sendMediaCommand(
+                                if (status?.isPlaying == true) MediaCommand.PAUSE else MediaCommand.PLAY,
+                            )
+                        }
+                        com.autoverse.launcher.core.remote.RemoteCommand.NEXT -> viewModel.sendMediaCommand(MediaCommand.NEXT)
+                        com.autoverse.launcher.core.remote.RemoteCommand.PREVIOUS -> viewModel.sendMediaCommand(MediaCommand.PREVIOUS)
+                        com.autoverse.launcher.core.remote.RemoteCommand.VOLUME_UP -> audio.adjustStreamVolume(
+                            android.media.AudioManager.STREAM_MUSIC, android.media.AudioManager.ADJUST_RAISE,
+                            android.media.AudioManager.FLAG_SHOW_UI,
+                        )
+                        com.autoverse.launcher.core.remote.RemoteCommand.VOLUME_DOWN -> audio.adjustStreamVolume(
+                            android.media.AudioManager.STREAM_MUSIC, android.media.AudioManager.ADJUST_LOWER,
+                            android.media.AudioManager.FLAG_SHOW_UI,
+                        )
+                        com.autoverse.launcher.core.remote.RemoteCommand.END_TRIP -> navigation.stop()
+                    }
+                }
+            }
+
+            // Opens the route preview on the car's screen; the driver taps Start there.
+            override fun navigate(text: String) = IncomingLocation.offer(text)
+        })
+        remote.apply()
+        onDispose { remote.attach(null) }
     }
 
     // Home banner when a renewal or service is due soon.
@@ -374,6 +456,13 @@ fun AppRoot(
             LocalOpenMusic provides { screen = Screen.MUSIC },
             LocalOpenCar provides { screen = Screen.CAR },
             LocalUse24HourClock provides settings.clock24h,
+            LocalRailStatus provides com.autoverse.launcher.core.design.components.RailStatus(
+                clock = formatClock(railNow.toLocalTime(), settings.clock24h),
+                temperature = (weatherState as? com.autoverse.launcher.core.weather.WeatherUiState.Available)
+                    ?.let { "${it.temperatureC}°" },
+                carAlert = reminderNotice != null,
+                onEditHome = { editingHome = true },
+            ),
             com.autoverse.launcher.core.routing.LocalNavLanguage provides navLanguage,
             LocalDensity provides Density(
                 density = baseDensity.density,
@@ -384,7 +473,13 @@ fun AppRoot(
             // predictive back (targetSdk 36) an unhandled gesture would animate Home away.
             BackHandler(enabled = true) { if (screen != Screen.HOME) screen = Screen.HOME }
 
-            if (!settings.onboardingComplete) {
+            if (!settingsLoaded) {
+                androidx.compose.foundation.layout.Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(com.autoverse.launcher.core.design.LocalAutoVerseColors.current.backgroundTop),
+                )
+            } else if (!settings.onboardingComplete) {
                 OnboardingScreen(
                     selectedTheme = settings.themeId,
                     onSelectTheme = { viewModel.setTheme(it) },
@@ -891,8 +986,12 @@ private fun DashboardPreview(
     layout: com.autoverse.launcher.core.model.HomeLayout,
     modifier: Modifier = Modifier,
 ) {
-    // The miniature must never adopt the session's single live MapView.
-    CompositionLocalProvider(LocalLiveMapHost provides null) {
+    // The miniature must never adopt the session's single live MapView, nor
+    // mirror a live trip's guidance controls.
+    CompositionLocalProvider(
+        LocalLiveMapHost provides null,
+        com.autoverse.launcher.core.routing.LocalInAppNavigation provides null,
+    ) {
         HomeScreenContent(
             data = data,
             contentInsets = WindowInsets(0, 0, 0, 0),
@@ -929,7 +1028,17 @@ private fun FullScreenEffect(enabled: Boolean) {
             if (event == Lifecycle.Event.ON_RESUME) apply()
         }
         lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+        // A dialog or the keyboard takes focus and can bring the bars back;
+        // hide them again as soon as the screen has focus again.
+        val focusListener = android.view.ViewTreeObserver.OnWindowFocusChangeListener { hasFocus ->
+            if (hasFocus && enabled) apply()
+        }
+        val treeObserver = window?.decorView?.viewTreeObserver
+        treeObserver?.addOnWindowFocusChangeListener(focusListener)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            window?.decorView?.viewTreeObserver?.takeIf { it.isAlive }?.removeOnWindowFocusChangeListener(focusListener)
+        }
     }
 }
 

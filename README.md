@@ -12,10 +12,10 @@
 
 <p align="center">
   <a href="releases"><img src="https://img.shields.io/badge/platform-Android%206.0%2B%20%28API%2023%29-3DDC84?logo=android&logoColor=white" alt="Platform: Android 6.0+ (API 23)"></a>
-  <img src="https://img.shields.io/badge/release-1.0.1-orange" alt="Release 1.0.1">
+  <img src="https://img.shields.io/badge/release-1.7.0-orange" alt="Release 1.7.0">
   <img src="https://img.shields.io/badge/target-Android%2016%20%28API%2036%29-3DDC84" alt="Target Android 16 (API 36)">
   <img src="https://img.shields.io/badge/Kotlin-2.2.21-7F52FF?logo=kotlin&logoColor=white" alt="Kotlin 2.2.21">
-  <img src="https://img.shields.io/badge/unit%20tests-484%20passing-brightgreen" alt="484 unit tests passing">
+  <img src="https://img.shields.io/badge/unit%20tests-549%20passing-brightgreen" alt="549 unit tests passing">
 </p>
 
 ---
@@ -29,6 +29,18 @@ built with Kotlin and Jetpack Compose, renders the map natively on the GPU
 is tuned for slow head units.
 
 ## Features
+
+**1.7 — phone connection (optional, Car → Phone)**
+- **AutoVerse Remote:** scan a QR code and a remote opens in the phone's browser. It works on iPhone and Android with no app to install. It can control music and volume, send a place or Google Maps link to the car, show the ETA, and end the trip. It runs over the phone's hotspot, is guarded by a one-time pairing code, and is off until you turn it on.
+- **Bluetooth:** a guide to pair the phone once.
+- **Spotify Connect:** a tip for moving the phone's Spotify to the car.
+
+**1.6 — premium redesign**
+- **Look:** Inter typeface; a graphite palette with borderless panels; four themes; the clock moved into the rail, so there is no top bar.
+- **Map:** a new night map (recoloured OpenFreeMap "liberty": warm highways, blue water, green parks, larger labels).
+- **Driving:** a tilted look-ahead driving camera with an arrow puck, a big turn card and ETA bar, and the map grows to 70% on Home while guiding.
+- **Maps screen:** shows only the map.
+- **Share from Google Maps:** shares and Google Maps links open on AutoVerse's map.
 
 **1.5 highlights** — dark-first premium design (big glanceable speed with the
 road's speed-limit sign, artwork-tinted music panel, header-free map, smooth

@@ -292,6 +292,50 @@ class InAppNavigationController(app: Application) : AndroidViewModel(app) {
         _state.value = NavState.Idle
     }
 
+    // ---- places shared from Google Maps / opened links ------------------------
+
+    /**
+     * A place another app handed to AutoVerse (Google Maps "Share", a geo:
+     * link, a maps link): shows the route preview on AutoVerse's own map.
+     * Short links are opened once to read where they point.
+     */
+    fun openShared(raw: String) {
+        when (val s = parseSharedLocation(raw)) {
+            null -> Unit
+            is SharedLocation.Point -> navigateTo(sharedPlace(s))
+            is SharedLocation.Query -> setQuery(s.text)
+            is SharedLocation.ShortLink -> {
+                val waiting = NavPlace(s.name ?: SHARED_NAME, "", 0.0, 0.0)
+                _state.value = NavState.Preparing(waiting, null)
+                routeJob?.cancel()
+                routeJob = viewModelScope.launch {
+                    val full = try {
+                        resolveShortLink(s.url)
+                    } catch (c: CancellationException) {
+                        throw c
+                    } catch (_: Exception) {
+                        null
+                    }
+                    when (val r = full?.let(::parseSharedLocation)) {
+                        is SharedLocation.Point -> navigateTo(sharedPlace(r.copy(name = s.name ?: r.name)))
+                        is SharedLocation.Query -> {
+                            _state.value = NavState.Idle
+                            setQuery(s.name ?: r.text)
+                        }
+                        else -> _state.value = NavState.Failed(
+                            waiting,
+                            if (full == null) "Couldn't open that link — check the car's internet"
+                            else "That link has no exact location. In Google Maps, tap the place's red pin, then Share.",
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private fun sharedPlace(p: SharedLocation.Point) =
+        NavPlace(p.name ?: SHARED_NAME, "From Google Maps", p.latitude, p.longitude)
+
     // ---- stops on the way (petrol, CNG, EV, toilets, food) -------------------
 
     /** The destination to resume after a stop added during guidance. */
@@ -630,6 +674,7 @@ class InAppNavigationController(app: Application) : AndroidViewModel(app) {
         const val KEY_WORK = "fav_work"
         const val RESUME_WITHIN_MS = 4 * 3_600_000L
         const val OVERPASS_WAIT_MS = 45_000L
+        const val SHARED_NAME = "Shared location"
         const val LOOKUP_EVERY_MS = 6_000L
         const val LOOKUP_EVERY_M = 80.0
         const val OVER_ALERT_EVERY_MS = 60_000L

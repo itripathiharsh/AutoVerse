@@ -160,6 +160,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         .stateIn(viewModelScope, SharingStarted.Eagerly, AppSettings())
 
     /**
+     * False until the saved settings have been read once. Until then the app
+     * draws a plain background instead of the defaults, so the welcome
+     * screen never flashes on a normal start.
+     */
+    val settingsLoaded: StateFlow<Boolean> = settingsRepository.settings
+        .map { true }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    /**
      * Wi-Fi / Bluetooth indicator state for the dashboard header. Listeners
      * register only while the dashboard collects and tear down shortly
      * after it goes away; unverifiable links stay UNKNOWN and hidden.

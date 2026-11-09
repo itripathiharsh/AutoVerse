@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Cloud
+import androidx.compose.material.icons.outlined.GpsNotFixed
 import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material.icons.outlined.PlayArrow
@@ -101,7 +102,6 @@ internal fun HomeMusicPanel(
         modifier = modifier
             .clip(AutoVerseShapes.card)
             .background(Brush.linearGradient(listOf(glow, colors.surface)))
-            .border(1.dp, colors.outline, AutoVerseShapes.card)
             .clickable(onClick = onOpenMusic)
             .padding(AutoVerseSpacing.md),
     ) {
@@ -115,18 +115,25 @@ internal fun HomeMusicPanel(
                 val artSize = (if (compact) maxHeight * 0.5f else maxHeight * 0.58f).coerceAtMost(maxWidth * 0.42f)
                 Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
+                        val art = artwork
+                        // Without cover art: a soft accent gradient tile, not a grey placeholder.
                         Box(
                             modifier = Modifier
                                 .size(artSize)
-                                .clip(AutoVerseShapes.small)
-                                .background(colors.surfaceHighlight),
+                                .clip(AutoVerseShapes.row)
+                                .background(
+                                    if (art != null) {
+                                        Brush.linearGradient(listOf(colors.surfaceHighlight, colors.surfaceHighlight))
+                                    } else {
+                                        Brush.linearGradient(listOf(colors.accent.copy(alpha = 0.55f), colors.surfaceHighlight))
+                                    },
+                                ),
                             contentAlignment = Alignment.Center,
                         ) {
-                            val art = artwork
                             if (art != null) {
                                 Image(art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                             } else {
-                                Icon(Icons.Outlined.MusicNote, null, tint = colors.textFaint, modifier = Modifier.size(artSize * 0.4f))
+                                Icon(Icons.Outlined.MusicNote, null, tint = colors.textPrimary.copy(alpha = 0.85f), modifier = Modifier.size(artSize * 0.36f))
                             }
                         }
                         Spacer(Modifier.width(AutoVerseSpacing.md))
@@ -136,21 +143,28 @@ internal fun HomeMusicPanel(
                             label = "track",
                             modifier = Modifier.weight(1f),
                         ) { (title, artist) ->
+                            // Never "Google / Google": the app's name shows once, as the
+                            // source line, and only when the track has its own title.
+                            val heading = title ?: state.appLabel ?: "Playing"
+                            val sub = artist?.takeIf { it != heading }
+                                ?: state.appLabel?.takeIf { title != null && it != heading }
                             Column {
                                 Text(
-                                    title ?: state.appLabel ?: "Playing",
+                                    heading,
                                     style = MaterialTheme.typography.titleLarge,
                                     color = colors.textPrimary,
                                     maxLines = 2,
                                     overflow = TextOverflow.Ellipsis,
                                 )
-                                Text(
-                                    artist ?: state.appLabel.orEmpty(),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = colors.textSecondary,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
+                                if (sub != null) {
+                                    Text(
+                                        sub,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = colors.textSecondary,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
                             }
                         }
                     }
@@ -203,12 +217,9 @@ private fun EmptyMusic(title: String, action: String, onAction: () -> Unit) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Box(
-            modifier = Modifier.size(56.dp).clip(CircleShape).background(colors.accentSoft),
-            contentAlignment = Alignment.Center,
-        ) { Icon(Icons.Outlined.MusicNote, null, tint = colors.accent, modifier = Modifier.size(30.dp)) }
-        Spacer(Modifier.height(AutoVerseSpacing.sm))
-        Text(title, style = MaterialTheme.typography.titleMedium, color = colors.textPrimary)
+        Icon(Icons.Outlined.MusicNote, null, tint = colors.textFaint, modifier = Modifier.size(36.dp))
+        Spacer(Modifier.height(AutoVerseSpacing.xs))
+        Text(title, style = MaterialTheme.typography.titleMedium, color = colors.textSecondary)
         Spacer(Modifier.height(AutoVerseSpacing.sm))
         PrimaryAction(text = action, onClick = onAction)
     }
@@ -224,12 +235,12 @@ private fun RoundControl(
     onClick: () -> Unit,
 ) {
     val colors = LocalAutoVerseColors.current
-    val size = if (primary) 64.dp else if (small) 48.dp else 56.dp
+    val size = if (primary) 68.dp else if (small) 52.dp else 56.dp
     Box(
         modifier = Modifier
             .size(size)
             .clip(CircleShape)
-            .background(if (primary) colors.accent else colors.surfaceHighlight.copy(alpha = 0.7f))
+            .background(if (primary) colors.textPrimary else colors.surfaceHighlight)
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
@@ -238,7 +249,7 @@ private fun RoundControl(
             contentDescription = label,
             tint = when {
                 !enabled -> colors.textFaint
-                primary -> colors.onAccent
+                primary -> colors.backgroundTop
                 else -> colors.textPrimary
             },
             modifier = Modifier.size(size * 0.55f),
@@ -282,18 +293,24 @@ internal fun HomeSpeedPanel(
         modifier = modifier
             .clip(AutoVerseShapes.card)
             .background(colors.surface)
-            .border(1.dp, if (over) colors.danger else colors.outline, AutoVerseShapes.card)
+            .then(if (over) Modifier.border(2.dp, colors.danger, AutoVerseShapes.card) else Modifier)
             .clickable(onClick = driving.onOpenSpeedometer)
             .padding(AutoVerseSpacing.md),
-        verticalArrangement = Arrangement.SpaceBetween,
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.weight(1f)) {
+        // The number is the hero: centred, huge, tabular. Without a fix it
+        // reads a calm dim "0", never dashes.
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().weight(1f),
+        ) {
+            Row(
+                verticalAlignment = Alignment.Bottom,
+                horizontalArrangement = Arrangement.Center,
+                modifier = Modifier.weight(1f),
+            ) {
                 Text(
-                    text = speed?.toString() ?: "--",
-                    fontSize = if (compact) 52.sp else 72.sp,
-                    lineHeight = if (compact) 54.sp else 74.sp,
-                    fontWeight = FontWeight.Light,
+                    text = (speed ?: 0).toString(),
+                    style = if (compact) MaterialTheme.typography.displayMedium else MaterialTheme.typography.displayLarge,
                     color = if (speed != null) speedColor else colors.textFaint,
                     maxLines = 1,
                 )
@@ -304,47 +321,49 @@ internal fun HomeSpeedPanel(
                     color = colors.textSecondary,
                     maxLines = 1,
                     softWrap = false,
-                    modifier = Modifier.padding(bottom = if (compact) 8.dp else 12.dp),
+                    modifier = Modifier.padding(bottom = if (compact) 6.dp else 12.dp),
                 )
             }
             if (speedLimitKmh != null) {
-                SpeedLimitSign(speedLimitKmh, size = if (compact) 48 else 60)
+                SpeedLimitSign(speedLimitKmh, size = if (compact) 52 else 64)
             }
         }
 
-        val fix = locationFixFor(status != GpsStatus.NO_ACCESS, status != GpsStatus.PROVIDER_OFF)
-        when {
-            fix == LocationFix.GRANT -> TextAction(text = fix.label, onClick = driving.onRequestLocationPermission)
-            fix == LocationFix.TURN_ON -> TextAction(text = fix.label, onClick = { openLocationServiceSettings(context) })
-            status != GpsStatus.LIVE -> Text("Finding GPS…", style = MaterialTheme.typography.labelMedium, color = colors.textFaint)
-            else -> Spacer(Modifier.height(0.dp))
-        }
-
+        // One quiet status line: a location fix button, the GPS state, or the
+        // weather condition plus today's distance (the temperature is in the rail).
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            val fix = locationFixFor(status != GpsStatus.NO_ACCESS, status != GpsStatus.PROVIDER_OFF)
             val w = driving.weatherState
-            if (w is WeatherUiState.Available) {
-                Icon(
-                    if (w.conditionCode <= 1) Icons.Outlined.WbSunny else Icons.Outlined.Cloud,
-                    null,
-                    tint = colors.warning,
-                    modifier = Modifier.size(22.dp),
-                )
-                Spacer(Modifier.width(AutoVerseSpacing.xs))
-                Text(
-                    "${w.temperatureC}°  ${w.conditionText}",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = colors.textPrimary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
-            } else {
-                Spacer(Modifier.weight(1f))
+            when {
+                fix == LocationFix.GRANT -> TextAction(text = fix.label, onClick = driving.onRequestLocationPermission)
+                fix == LocationFix.TURN_ON -> TextAction(text = fix.label, onClick = { openLocationServiceSettings(context) })
+                status != GpsStatus.LIVE -> {
+                    Icon(Icons.Outlined.GpsNotFixed, null, tint = colors.textFaint, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(AutoVerseSpacing.xs))
+                    Text("Waiting for GPS", style = MaterialTheme.typography.bodyMedium, color = colors.textFaint)
+                }
+                w is WeatherUiState.Available -> {
+                    Icon(
+                        if (w.conditionCode <= 1) Icons.Outlined.WbSunny else Icons.Outlined.Cloud,
+                        null,
+                        tint = colors.textSecondary,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(AutoVerseSpacing.xs))
+                    Text(
+                        "${w.temperatureC}° · ${w.conditionText}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colors.textSecondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
+            Spacer(Modifier.weight(1f))
             if (data.tripDistanceMeters >= 100) {
                 Text(
                     "${data.tripDistanceFormatted} today",
-                    style = MaterialTheme.typography.labelMedium,
+                    style = MaterialTheme.typography.bodyMedium,
                     color = colors.textSecondary,
                 )
             }

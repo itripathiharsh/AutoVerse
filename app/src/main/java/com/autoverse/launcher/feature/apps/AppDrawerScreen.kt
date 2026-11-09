@@ -142,16 +142,20 @@ fun AppDrawerScreen(
                 .padding(innerPadding)
                 .background(colors.backgroundTop)
                 .windowInsetsPadding(WindowInsets.safeDrawing)
-                .padding(horizontal = AutoVerseSpacing.md, vertical = AutoVerseSpacing.sm),
+                .padding(AutoVerseSpacing.sm),
             verticalArrangement = Arrangement.spacedBy(AutoVerseSpacing.sm),
         ) {
-            DashboardTopBar(
-                clockText = clockText,
-                dateText = dateText,
-                connectivity = connectivity,
-                onOpenDiagnostics = onOpenDiagnostics,
-                onOpenSettings = onOpenSettings,
-            )
+            // The rail shows the time in the app; the top bar remains only where
+            // no rail status is provided (previews).
+            if (com.autoverse.launcher.core.design.components.LocalRailStatus.current.clock.isBlank()) {
+                DashboardTopBar(
+                    clockText = clockText,
+                    dateText = dateText,
+                    connectivity = connectivity,
+                    onOpenDiagnostics = onOpenDiagnostics,
+                    onOpenSettings = onOpenSettings,
+                )
+            }
             Row(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(AutoVerseSpacing.gridGap),

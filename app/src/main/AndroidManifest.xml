@@ -8,6 +8,13 @@
         launcher itself and the navigation hand-off work fully offline.
     -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!--
+        AutoVerse Remote (optional, off by default): when the driver turns it
+        on in Car → Phone, a small local web server answers the driver's phone
+        on the unit's own Wi-Fi/hotspot network, guarded by a pairing code.
+        It uses the INTERNET permission above; nothing is reachable from the
+        internet and nothing runs while the switch is off.
+    -->
 
     <!--
         Dashboard status indicators: reading the active network transport.
@@ -151,6 +158,9 @@
         <package android:name="com.google.android.apps.maps" />
         <package android:name="com.waze" />
 
+        <!-- Car → Phone: says whether Spotify Connect is ready on this unit. -->
+        <package android:name="com.spotify.music" />
+
         <!--
             Music page: apps that offer their library to car systems through
             the standard media browser service (Spotify, JioSaavn, Poweramp…).
@@ -185,6 +195,40 @@
                 <category android:name="android.intent.category.LAUNCHER" />
                 <category android:name="android.intent.category.HOME" />
                 <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+
+            <!--
+                Places from other apps: Google Maps "Share → AutoVerse" (text
+                with a maps link), geo: links, and Google Maps links opened
+                from messages — AutoVerse then navigates on its own map.
+            -->
+            <intent-filter android:label="Navigate with AutoVerse">
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+            <intent-filter android:label="Navigate with AutoVerse">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="geo" />
+            </intent-filter>
+            <intent-filter android:label="Navigate with AutoVerse">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
+                <data android:host="maps.app.goo.gl" />
+                <data android:host="maps.google.com" />
+            </intent-filter>
+            <intent-filter android:label="Navigate with AutoVerse">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
+                <data android:host="www.google.com" />
+                <data android:host="google.com" />
+                <data android:pathPrefix="/maps" />
             </intent-filter>
         </activity>
 

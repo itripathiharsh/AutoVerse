@@ -830,7 +830,7 @@ private fun AppearanceSettings(
 
     WidgetContainer(
         title = "THEME",
-        subtitle = "One design language, ten characters",
+        subtitle = "One design language, four moods",
         icon = Icons.Outlined.DarkMode,
     ) {
         AutoVerseThemeId.entries.forEach { theme ->
@@ -1440,18 +1440,10 @@ private fun categoryIcon(category: SettingsCategory): ImageVector = when (catego
 }
 
 private fun themeDescription(theme: AutoVerseThemeId): String = when (theme) {
-    AutoVerseThemeId.COBALT -> "Deep charcoal with the brand\u2019s electric blue"
-    AutoVerseThemeId.OBSIDIAN -> "Graphite and silver \u2014 the AutoVerse baseline"
-    AutoVerseThemeId.NEON_PULSE -> "Midnight blue with electric cyan accents"
-    AutoVerseThemeId.ATELIER -> "Warm neutrals and quiet, calm surfaces"
-    AutoVerseThemeId.APEX -> "Motorsport reds with stronger hierarchy"
-    AutoVerseThemeId.SAKURA -> "Anime day-vibe: blush plum and cherry petals"
-    AutoVerseThemeId.NEON_TOKYO -> "Anime night: midnight city with electric cyan"
-    AutoVerseThemeId.SHONEN -> "Anime hero: ink indigo, plus-ultra energy"
-    AutoVerseThemeId.GOTHAM -> "Vigilante stealth: true black, bat-signal yellow"
-    AutoVerseThemeId.HOT_ROD -> "Armored hero: warm gunmetal and arc red"
-    AutoVerseThemeId.FORTRESS -> "Bright citadel: warm white and sky blue"
-    AutoVerseThemeId.WEB_RUSH -> "Urban sport: racing red and electric blue"
+    AutoVerseThemeId.COBALT -> "Graphite with AutoVerse blue"
+    AutoVerseThemeId.OBSIDIAN -> "Graphite with a champagne-gold accent"
+    AutoVerseThemeId.ATELIER -> "Warm tones, calm on long night drives"
+    AutoVerseThemeId.APEX -> "Graphite with a sporty orange accent"
 }
 
 private fun appearanceDescription(mode: AppearanceMode): String = when (mode) {

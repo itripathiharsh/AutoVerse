@@ -9,9 +9,16 @@ package com.autoverse.launcher.core.map
  * without touching UI code.
  */
 object MapStyle {
-    const val STYLE_HOST = "https://tiles.openfreemap.org/styles/"
-    const val NIGHT_STYLE = "dark"
-    const val DAY_STYLE = "positron"
+    /**
+     * OpenFreeMap "liberty", pinned in assets and recoloured for night by
+     * [MapStyleJson]. Tiles, glyphs and sprites still come from the keyless
+     * OpenFreeMap host the style references.
+     */
+    const val STYLE_ASSET = "map/liberty.json"
+    const val TILE_HOST = "https://tiles.openfreemap.org/"
+
+    /** Stable keys for the two built styles (day/night switch reloads by key). */
+    fun styleKey(night: Boolean): String = if (night) "night" else "day"
 
     /** OpenStreetMap's ODbL requires this to stay visible on the map. */
     const val ATTRIBUTION = "© OpenFreeMap © OpenMapTiles © OpenStreetMap contributors"
@@ -31,6 +38,29 @@ object MapStyle {
 
     /** Closer, heading-up zoom while turn-by-turn guidance runs. */
     const val GUIDANCE_ZOOM = 16.5
+
+    /** Driving perspective: tilted so the road ahead fills the view. */
+    const val GUIDANCE_TILT = 50.0
+
+    /** Lighter tilt on entry-level units (a pitched view loads more tiles). */
+    const val GUIDANCE_TILT_LITE = 35.0
+
+    /**
+     * Share of the map height kept above the car while guiding, so the car
+     * sits low in the view and most of the screen shows the road ahead.
+     */
+    const val GUIDANCE_LOOK_AHEAD = 0.42
+
+    /**
+     * Guidance zoom by speed: close in town, further out on highways so the
+     * next turn appears early. Pure for JVM tests.
+     */
+    fun guidanceZoomFor(speedKmh: Int?): Double = when {
+        speedKmh == null || speedKmh < 35 -> 17.0
+        speedKmh < 70 -> 16.4
+        speedKmh < 95 -> 15.8
+        else -> 15.2
+    }
 
     /** Zoom used when reopening at the last remembered car position. */
     const val REMEMBERED_ZOOM = 14.0
@@ -63,13 +93,17 @@ object MapStyle {
     const val LOCATION_ANIMATION_MAX_FPS = 30
 
     /**
-     * Layers hidden in lite mode (Constrained profile). OpenFreeMap's styles
-     * have no 3D or POI layers; at driving zoom the remaining extras are the
-     * dense building footprints and one-way arrows — neither helps a driver.
+     * Layers hidden in lite mode (entry-level units): 3D buildings, the dense
+     * low-rank POIs, one-way arrows and rail hatching cost frame time without
+     * helping a driver. Ids are liberty's.
      */
-    val LITE_HIDDEN_LAYERS: Set<String> = setOf("building", "road_oneway", "road_oneway_opposite")
-
-    fun styleUrl(night: Boolean): String = STYLE_HOST + if (night) NIGHT_STYLE else DAY_STYLE
+    val LITE_HIDDEN_LAYERS: Set<String> = setOf(
+        "building-3d", "poi_r20", "poi_r7",
+        "road_one_way_arrow", "road_one_way_arrow_opposite",
+        "road_major_rail_hatching", "road_transit_rail_hatching",
+        "bridge_major_rail_hatching", "bridge_transit_rail_hatching",
+        "tunnel_major_rail_hatching", "tunnel_transit_rail_hatching",
+    )
 
     /**
      * Below walking speed GPS bearing is noise, so the camera stops rotating

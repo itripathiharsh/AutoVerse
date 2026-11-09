@@ -23,6 +23,17 @@ changed in Phase 12, so the table below stands as verified.
 > komoot) are © OpenStreetMap contributors (ODbL): attribution is shown on the
 > map. The MIT notice must be included in Settings → Licenses.
 
+> **1.6.0 update (2026-11-10, premium redesign):** added the **Inter** typeface
+> (Regular/Light/Medium/SemiBold/Bold, `app/src/main/res/font/inter_*.ttf`,
+> © The Inter Project Authors, **SIL Open Font License 1.1**, from Google
+> Fonts) — the OFL allows bundling in apps; the font may not be sold on its
+> own and the licence notice must ship (Settings → Licenses). Added the
+> OpenFreeMap **"liberty"** map style JSON (`app/src/main/assets/map/liberty.json`,
+> BSD-3-Clause, derived from OSM Liberty / OpenMapTiles styles), recoloured at
+> runtime for night; tiles, glyphs and sprites still come from OpenFreeMap.
+> Removed the seven gallery themes whose names/descriptions referenced
+> third-party characters.
+
 ## Shipped dependencies and licenses
 
 ### First-level runtime dependencies

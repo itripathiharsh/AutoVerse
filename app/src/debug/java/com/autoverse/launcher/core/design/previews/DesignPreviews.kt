@@ -120,14 +120,14 @@ private fun PaletteDayPreview() {
 
 @Preview(name = "Palette — Neon Pulse Night", widthDp = 920, heightDp = 620)
 @Composable
-private fun PaletteNeonPulseNightPreview() {
-    PalettePreview(AutoVerseThemeId.NEON_PULSE, AppearanceMode.NIGHT)
+private fun PaletteAtelierNightAltPreview() {
+    PalettePreview(AutoVerseThemeId.ATELIER, AppearanceMode.NIGHT)
 }
 
 @Preview(name = "Palette — Neon Pulse Day", widthDp = 920, heightDp = 620)
 @Composable
-private fun PaletteNeonPulseDayPreview() {
-    PalettePreview(AutoVerseThemeId.NEON_PULSE, AppearanceMode.DAY)
+private fun PaletteAtelierDayAltPreview() {
+    PalettePreview(AutoVerseThemeId.ATELIER, AppearanceMode.DAY)
 }
 
 @Preview(name = "Palette — Atelier Night", widthDp = 920, heightDp = 620)
@@ -240,8 +240,8 @@ private fun ComponentGalleryDayPreview() {
 
 @Preview(name = "Components — Neon Pulse", widthDp = 920, heightDp = 1400)
 @Composable
-private fun ComponentGalleryNeonPulsePreview() {
-    ComponentGalleryPreview(AutoVerseThemeId.NEON_PULSE, AppearanceMode.NIGHT)
+private fun ComponentGalleryAtelierAltPreview() {
+    ComponentGalleryPreview(AutoVerseThemeId.ATELIER, AppearanceMode.NIGHT)
 }
 
 @Preview(name = "Components — Atelier", widthDp = 920, heightDp = 1400)
@@ -775,8 +775,8 @@ private fun SettingsWideDayPreview() {
 
 @Preview(name = "Settings — Wide, Neon Pulse (1280x800)", widthDp = 1280, heightDp = 800)
 @Composable
-private fun SettingsWideNeonPulsePreview() {
-    SettingsPreview(widthDp = 1280, heightDp = 800, themeId = AutoVerseThemeId.NEON_PULSE)
+private fun SettingsWideAtelierPreview() {
+    SettingsPreview(widthDp = 1280, heightDp = 800, themeId = AutoVerseThemeId.ATELIER)
 }
 
 @Preview(name = "Settings — Medium (800x600)", widthDp = 800, heightDp = 600)
@@ -956,8 +956,8 @@ private fun DiagnosticsWideDayPreview() {
 
 @Preview(name = "Diagnostics — Wide, Neon Pulse (1280x800)", widthDp = 1280, heightDp = 800)
 @Composable
-private fun DiagnosticsWideNeonPulsePreview() {
-    DiagnosticsPreview(themeId = AutoVerseThemeId.NEON_PULSE)
+private fun DiagnosticsWideAtelierPreview() {
+    DiagnosticsPreview(themeId = AutoVerseThemeId.ATELIER)
 }
 
 @Preview(name = "Diagnostics — Medium (800x600)", widthDp = 800, heightDp = 600)

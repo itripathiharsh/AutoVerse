@@ -63,6 +63,7 @@ import com.autoverse.launcher.core.phone.showsIncomingCall
 import com.autoverse.launcher.core.weather.WeatherUiState
 import com.autoverse.launcher.core.model.HomeLayout
 import kotlin.math.roundToInt
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 
 data class DashboardData(
@@ -292,24 +293,15 @@ internal fun HomeScreenContent(
             heightDp = maxHeight.value.roundToInt(),
             fontScale = LocalDensity.current.fontScale,
         ).statusChips
+        // No top bar: the time, temperature and alerts live in the rail header,
+        // so the map and panels get the full height of the screen.
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .windowInsetsPadding(contentInsets)
-                .padding(horizontal = AutoVerseSpacing.md, vertical = AutoVerseSpacing.sm),
+                .padding(AutoVerseSpacing.sm),
             verticalArrangement = Arrangement.spacedBy(AutoVerseSpacing.sm),
         ) {
-            DashboardTopBar(
-                clockText = data.clockText,
-                dateText = data.dateText,
-                connectivity = data.connectivity,
-                chips = chips.coerceAtMost(StatusChipsMode.REDUCED),
-                fpsText = data.fpsText,
-                onOpenSettings = rail.onOpenSettings,
-                onEditHome = onEditHome,
-                notice = notice,
-                onNotice = onNotice,
-            )
             Row(
                 modifier = Modifier
                     .weight(1f)
@@ -348,6 +340,9 @@ internal fun HomeScreenContent(
 private fun StatusChipsMode.coerceAtMost(limit: StatusChipsMode): StatusChipsMode =
     if (ordinal > limit.ordinal) limit else this
 
+/** Share of the cockpit the map takes during turn-by-turn on Home. */
+private const val GUIDING_MAP_FRACTION = 0.7f
+
 /**
  * Map ~60%, music ~20%, speed/call ~20% of the content area. SIDE_BY_SIDE puts
  * music above speed in a 40% column beside the map; STACKED puts the map on
@@ -361,7 +356,12 @@ private fun CockpitRegions(
     maps: MapsSection,
     driving: DrivingSection,
 ) {
-    val mapWeight = layout.mapSize.fraction
+    // While navigating, the map grows so the road ahead and the next turn get
+    // the room; music and speed stay beside it, narrower.
+    val navigation = com.autoverse.launcher.core.routing.LocalInAppNavigation.current
+    val navState = navigation?.state?.collectAsStateWithLifecycle()?.value
+    val guiding = navState is com.autoverse.launcher.core.routing.NavState.Guiding
+    val mapWeight = if (guiding) maxOf(layout.mapSize.fraction, GUIDING_MAP_FRACTION) else layout.mapSize.fraction
     val sideWeight = 1f - mapWeight
     val mapRegion: @Composable (Modifier) -> Unit = { regionModifier ->
         MapsLaunchPanel(

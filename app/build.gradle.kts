@@ -23,8 +23,8 @@ android {
         applicationId = "com.autoverse.launcher"
         minSdk = 23
         targetSdk = 36
-        versionCode = 47
-        versionName = "1.5.0"
+        versionCode = 49
+        versionName = "1.7.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         ndk {
@@ -140,6 +140,8 @@ dependencies {
     implementation(libs.shizuku.provider)
     implementation(libs.kotlinx.coroutines.android)
     implementation(project(":brouter"))
+    // QR code for AutoVerse Remote (encoder only, Apache-2.0, ~550 KB before R8).
+    implementation("com.google.zxing:core:3.5.3")
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.session)
 

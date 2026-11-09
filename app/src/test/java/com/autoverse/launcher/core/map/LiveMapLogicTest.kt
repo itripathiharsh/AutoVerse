@@ -11,14 +11,19 @@ import org.junit.Test
 class LiveMapLogicTest {
 
     @Test
-    fun `styles come from keyless OpenFreeMap and follow day and night`() {
-        assertEquals("https://tiles.openfreemap.org/styles/dark", MapStyle.styleUrl(night = true))
-        assertEquals("https://tiles.openfreemap.org/styles/positron", MapStyle.styleUrl(night = false))
-        listOf(true, false).forEach { night ->
-            val url = MapStyle.styleUrl(night)
-            assertTrue(url.startsWith("https://"))
-            assertFalse("no API key may ever be embedded", url.contains("key=", ignoreCase = true))
-        }
+    fun `styles follow day and night and use keyless OpenFreeMap tiles`() {
+        assertEquals("night", MapStyle.styleKey(night = true))
+        assertEquals("day", MapStyle.styleKey(night = false))
+        assertTrue(MapStyle.TILE_HOST.startsWith("https://"))
+        assertFalse("no API key may ever be embedded", MapStyle.TILE_HOST.contains("key=", ignoreCase = true))
+    }
+
+    @Test
+    fun `guidance zooms out as speed rises`() {
+        assertEquals(17.0, MapStyle.guidanceZoomFor(null), 0.0)
+        assertEquals(17.0, MapStyle.guidanceZoomFor(20), 0.0)
+        assertTrue(MapStyle.guidanceZoomFor(60) < MapStyle.guidanceZoomFor(20))
+        assertTrue(MapStyle.guidanceZoomFor(110) < MapStyle.guidanceZoomFor(60))
     }
 
     @Test

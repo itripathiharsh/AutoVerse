@@ -49,6 +49,7 @@ import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -64,10 +65,23 @@ import com.autoverse.launcher.core.routing.ManeuverType
 import com.autoverse.launcher.core.routing.NavPlace
 import com.autoverse.launcher.core.routing.NavState
 import com.autoverse.launcher.core.routing.PoiCategory
+import com.autoverse.launcher.core.routing.PlaceSearch
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.mutableStateOf
 import com.autoverse.launcher.core.routing.RouteStop
 import com.autoverse.launcher.core.routing.StopsState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.outlined.LocalGasStation
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Work
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.WorkOutline
+import androidx.compose.material.icons.outlined.PhotoCamera
+import androidx.compose.material.icons.outlined.Navigation
+import androidx.compose.material.icons.outlined.EvStation
+import androidx.compose.material.icons.outlined.Wc
+import androidx.compose.material.icons.outlined.Restaurant
+import androidx.compose.material.icons.outlined.PropaneTank
 import com.autoverse.launcher.core.routing.NavText
 import com.autoverse.launcher.core.routing.LocalNavLanguage
 import com.autoverse.launcher.core.routing.formatDistance
@@ -110,7 +124,13 @@ fun InAppNavigationMapSync(controller: InAppNavigationController) {
             1 -> route?.let { r ->
                 host.showOverview(r.points.map { LatLng(it.latitude, it.longitude) }, padding, bottomPadding)
             }
-            2 -> host.followForGuidance()
+            2 -> {
+                host.followForGuidance()
+                // The preview's overview animation can still be settling; apply
+                // the tilted look-ahead view once more after it has finished.
+                delay(900)
+                host.followForGuidance()
+            }
             0 -> if (previousMode != 0) host.followCar()
         }
         // Remember the last real camera mode, so Arrived/Failed → Idle still recenters.
@@ -135,6 +155,7 @@ fun BoxScope.InAppNavigationOverlay(
     when (val s = state) {
         NavState.Idle -> if (search.query.isNotBlank()) {
             SearchResults(
+                query = search.query,
                 results = search.results,
                 loading = search.loading,
                 error = search.error,
@@ -195,20 +216,24 @@ fun BoxScope.InAppNavigationOverlay(
                 horizontalArrangement = Arrangement.spacedBy(AutoVerseSpacing.xs),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                PrimaryAction(text = NavText.start(lang), onClick = controller::startGuidance)
-                TextAction(text = NavText.cancel(lang), onClick = controller::stop)
-                if (!compact) TextAction(text = "Google Maps", onClick = { onOpenInGoogleMaps(s.place) })
+                PrimaryAction(text = NavText.start(lang), onClick = controller::startGuidance, icon = Icons.Outlined.Navigation)
+                TextAction(text = NavText.cancel(lang), onClick = controller::stop, quiet = true)
+                if (!compact) TextAction(text = "Google Maps", onClick = { onOpenInGoogleMaps(s.place) }, quiet = true)
             }
             val favs by controller.favorites.collectAsStateWithLifecycle()
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Save as", style = MaterialTheme.typography.labelMedium, color = LocalAutoVerseColors.current.textFaint)
                 TextAction(
-                    text = if (favs["home"] == s.place) "🏠 Home ✓" else "🏠 Home",
+                    text = "Home",
+                    icon = if (favs["home"] == s.place) Icons.Filled.Home else Icons.Outlined.Home,
                     onClick = { controller.setFavorite("home", s.place) },
+                    quiet = favs["home"] != s.place,
                 )
                 TextAction(
-                    text = if (favs["work"] == s.place) "💼 Work ✓" else "💼 Work",
+                    text = "Work",
+                    icon = if (favs["work"] == s.place) Icons.Filled.Work else Icons.Outlined.WorkOutline,
                     onClick = { controller.setFavorite("work", s.place) },
+                    quiet = favs["work"] != s.place,
                 )
             }
         }
@@ -223,15 +248,17 @@ fun BoxScope.InAppNavigationOverlay(
             ) {
                 s.progress?.speedLimitKmh?.let { com.autoverse.launcher.feature.home.SpeedLimitSign(it, size = if (compact) 48 else 60) }
                 s.progress?.nextCameraMeters?.takeIf { it < 1_500 }?.let { d ->
-                    Text(
-                        "📷 ${formatDistance(d)}",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = androidx.compose.ui.graphics.Color.White,
+                    Row(
                         modifier = Modifier
                             .clip(AutoVerseShapes.pill)
-                            .background(androidx.compose.ui.graphics.Color(0xFFD32F2F))
-                            .padding(horizontal = AutoVerseSpacing.sm, vertical = 4.dp),
-                    )
+                            .background(LocalAutoVerseColors.current.danger)
+                            .padding(horizontal = AutoVerseSpacing.sm, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(Icons.Outlined.PhotoCamera, contentDescription = "Speed camera", tint = LocalAutoVerseColors.current.onAccent, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(formatDistance(d), style = MaterialTheme.typography.labelLarge, color = LocalAutoVerseColors.current.onAccent)
+                    }
                 }
             }
             GuidanceBanner(
@@ -247,9 +274,10 @@ fun BoxScope.InAppNavigationOverlay(
                 onToggleVoice = controller::toggleVoice,
                 onEnd = controller::stop,
                 onStops = { controller.findStops(PoiCategory.PETROL) },
+                // Lifted so the map's required OpenStreetMap credit stays visible below it.
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(AutoVerseSpacing.xs),
+                    .padding(start = AutoVerseSpacing.xs, end = AutoVerseSpacing.xs, bottom = 22.dp),
             )
         }
 
@@ -386,8 +414,15 @@ private fun CategoryChip(category: PoiCategory, selected: Boolean, onClick: () -
             .padding(horizontal = AutoVerseSpacing.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        Icon(
+            poiIcon(category),
+            contentDescription = null,
+            tint = if (selected) colors.onAccent else colors.textSecondary,
+            modifier = Modifier.size(18.dp),
+        )
+        Spacer(Modifier.width(6.dp))
         Text(
-            "${category.emoji} ${category.label}",
+            category.label,
             style = MaterialTheme.typography.labelLarge,
             color = if (selected) colors.onAccent else colors.textPrimary,
             maxLines = 1,
@@ -434,7 +469,7 @@ fun InAppNavigationSearchRow(
                 }
             } else null,
         )
-        TextAction(text = "Google Maps", onClick = onOpenGoogleMaps)
+        TextAction(text = "Google Maps", onClick = onOpenGoogleMaps, quiet = true)
     }
     if (showRecents && search.query.isBlank() && state is NavState.Idle) {
         val colors = LocalAutoVerseColors.current
@@ -443,7 +478,7 @@ fun InAppNavigationSearchRow(
             horizontalArrangement = Arrangement.spacedBy(AutoVerseSpacing.xs),
         ) {
             // Home / Work first (one tap to the daily drives), then quick "nearby" chips.
-            items(listOf("home" to "🏠 Home", "work" to "💼 Work").filter { favorites[it.first] != null }) { (key, label) ->
+            items(listOf("home" to "Home", "work" to "Work").filter { favorites[it.first] != null }) { (key, label) ->
                 val place = favorites.getValue(key)!!
                 Row(
                     modifier = Modifier
@@ -453,7 +488,16 @@ fun InAppNavigationSearchRow(
                         .heightIn(min = AutoVerseSpacing.touchMin)
                         .padding(horizontal = AutoVerseSpacing.sm),
                     verticalAlignment = Alignment.CenterVertically,
-                ) { Text(label, style = MaterialTheme.typography.labelLarge, color = colors.textPrimary) }
+                ) {
+                    Icon(
+                        if (key == "home") Icons.Outlined.Home else Icons.Outlined.WorkOutline,
+                        contentDescription = null,
+                        tint = colors.accent,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(label, style = MaterialTheme.typography.labelLarge, color = colors.textPrimary)
+                }
             }
             items(PoiCategory.entries.take(3)) { c ->
                 CategoryChip(c, selected = false) { controller.findStops(c) }
@@ -490,6 +534,7 @@ fun InAppNavigationSearchRow(
 
 @Composable
 private fun SearchResults(
+    query: String,
     results: List<NavPlace>,
     loading: Boolean,
     error: String?,
@@ -497,6 +542,9 @@ private fun SearchResults(
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalAutoVerseColors.current
+    val context = LocalContext.current
+    var mapsMissing by remember { mutableStateOf(false) }
+    val searchable = query.trim().length >= PlaceSearch.MIN_QUERY_LENGTH
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -514,12 +562,27 @@ private fun SearchResults(
                 color = colors.warning,
                 modifier = Modifier.padding(AutoVerseSpacing.sm),
             )
-            results.isEmpty() && !loading -> Text(
+            results.isEmpty() && !loading && !searchable -> Text(
                 "Type at least 3 letters — a place, area or address",
                 style = MaterialTheme.typography.bodySmall,
                 color = colors.textFaint,
                 modifier = Modifier.padding(AutoVerseSpacing.sm),
             )
+            // Not on AutoVerse's map (many villages have no name on OpenStreetMap yet):
+            // look it up in Google Maps, then Share → AutoVerse brings it back here.
+            results.isEmpty() && !loading -> Column(Modifier.padding(AutoVerseSpacing.sm)) {
+                Text("“${query.trim()}” isn't on AutoVerse's map yet", style = MaterialTheme.typography.titleSmall, color = colors.textPrimary)
+                Text(
+                    "Find it in Google Maps, tap the place, then Share → AutoVerse. The route opens here on AutoVerse's map.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.textSecondary,
+                )
+                Spacer(Modifier.size(AutoVerseSpacing.xs))
+                PrimaryAction(text = "Find in Google Maps", onClick = { mapsMissing = !openGoogleMapsSearch(context, query.trim()) })
+                if (mapsMissing) {
+                    Text("Google Maps isn't installed on this unit.", style = MaterialTheme.typography.labelSmall, color = colors.warning)
+                }
+            }
         }
         LazyColumn(modifier = Modifier.heightIn(max = 260.dp)) {
             items(results, key = { it.name + it.detail + it.latitude + it.longitude }) { place ->
@@ -542,46 +605,112 @@ private fun SearchResults(
                 }
             }
         }
+        if (results.isNotEmpty() && !loading && searchable) {
+            TextAction(
+                text = "Not here? Find in Google Maps, then Share → AutoVerse",
+                onClick = { mapsMissing = !openGoogleMapsSearch(context, query.trim()) },
+                modifier = Modifier.padding(horizontal = AutoVerseSpacing.xs),
+            )
+        }
     }
 }
 
+/**
+ * Opens Google Maps itself (never a browser — AutoVerse handles Google Maps
+ * web links, which would loop back here) searching for [query]. False when
+ * Google Maps isn't installed.
+ */
+private fun openGoogleMapsSearch(context: android.content.Context, query: String): Boolean = try {
+    val uri = android.net.Uri.parse("geo:0,0?q=" + android.net.Uri.encode(query))
+    context.startActivity(
+        android.content.Intent(android.content.Intent.ACTION_VIEW, uri)
+            .setPackage("com.google.android.apps.maps")
+            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+    )
+    true
+} catch (_: Exception) {
+    false
+}
+
+private fun poiIcon(category: PoiCategory): ImageVector = when (category) {
+    PoiCategory.PETROL -> Icons.Outlined.LocalGasStation
+    PoiCategory.CNG -> Icons.Outlined.PropaneTank
+    PoiCategory.EV -> Icons.Outlined.EvStation
+    PoiCategory.TOILETS -> Icons.Outlined.Wc
+    PoiCategory.FOOD -> Icons.Outlined.Restaurant
+}
+
+/**
+ * The next turn: the one big thing on screen while driving. A dark floating
+ * card (not a coloured box) with the arrow on an accent tile, the distance
+ * as the largest type, the instruction under it, and the turn after next
+ * in a quieter strip below.
+ */
 @Composable
 private fun GuidanceBanner(state: NavState.Guiding, modifier: Modifier, compact: Boolean) {
     val lang = LocalNavLanguage.current
     val colors = LocalAutoVerseColors.current
     val progress = state.progress
     val next = progress?.nextManeuver
-    Row(
+    val tile = if (compact) 64.dp else 76.dp
+    Column(
         modifier = modifier
-            .widthIn(max = 520.dp)
-            .clip(AutoVerseShapes.small)
-            .background(colors.accent)
-            .padding(horizontal = AutoVerseSpacing.md, vertical = AutoVerseSpacing.sm),
-        verticalAlignment = Alignment.CenterVertically,
+            .widthIn(min = 260.dp, max = if (compact) 360.dp else 440.dp)
+            .shadow(12.dp, AutoVerseShapes.tile)
+            .clip(AutoVerseShapes.tile)
+            .background(colors.surface.copy(alpha = 0.97f)),
     ) {
-        Icon(
-            imageVector = next?.type?.let(::maneuverIcon) ?: Icons.Outlined.ArrowUpward,
-            contentDescription = null,
-            tint = colors.onAccent,
-            modifier = Modifier.size(if (compact) 36.dp else 48.dp),
-        )
-        Spacer(Modifier.width(AutoVerseSpacing.sm))
-        Column {
-            when {
-                state.rerouting -> Text(NavText.recalculatingTitle(lang), color = colors.onAccent, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                progress == null || next == null -> Text("Head to the route", color = colors.onAccent, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                else -> {
-                    Text(
-                        formatDistance(progress.distanceToNextManeuver),
-                        color = colors.onAccent,
-                        fontSize = if (compact) 24.sp else 30.sp,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Text(NavText.maneuver(next, lang), color = colors.onAccent, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    progress.thenManeuver?.let {
-                        Text(NavText.then(it, lang), color = colors.onAccent.copy(alpha = 0.85f), style = MaterialTheme.typography.labelMedium, maxLines = 1)
+        Row(
+            modifier = Modifier.padding(AutoVerseSpacing.sm),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(tile)
+                    .clip(AutoVerseShapes.row)
+                    .background(colors.accent),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = next?.type?.let(::maneuverIcon) ?: Icons.Outlined.ArrowUpward,
+                    contentDescription = null,
+                    tint = colors.onAccent,
+                    modifier = Modifier.size(tile * 0.7f),
+                )
+            }
+            Spacer(Modifier.width(AutoVerseSpacing.md))
+            Column {
+                when {
+                    state.rerouting -> Text(NavText.recalculatingTitle(lang), style = MaterialTheme.typography.headlineSmall, color = colors.textPrimary)
+                    progress == null || next == null -> Text("Head to the route", style = MaterialTheme.typography.headlineSmall, color = colors.textPrimary)
+                    else -> {
+                        Text(
+                            formatDistance(progress.distanceToNextManeuver),
+                            style = if (compact) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.displaySmall,
+                            color = colors.textPrimary,
+                        )
+                        Text(
+                            NavText.maneuver(next, lang),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = colors.textSecondary,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                     }
                 }
+            }
+        }
+        progress?.thenManeuver?.takeIf { !state.rerouting }?.let {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(colors.surfaceHighlight)
+                    .padding(horizontal = AutoVerseSpacing.md, vertical = AutoVerseSpacing.xs),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(maneuverIcon(it.type), contentDescription = null, tint = colors.textSecondary, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(AutoVerseSpacing.xs))
+                Text(NavText.then(it, lang), style = MaterialTheme.typography.labelLarge, color = colors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
@@ -602,21 +731,21 @@ private fun GuidanceFooter(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(AutoVerseShapes.small)
-            .background(colors.surface.copy(alpha = 0.95f))
-            .padding(horizontal = AutoVerseSpacing.sm, vertical = AutoVerseSpacing.xxs),
+            .shadow(12.dp, AutoVerseShapes.tile)
+            .clip(AutoVerseShapes.tile)
+            .background(colors.surface.copy(alpha = 0.97f))
+            .padding(horizontal = AutoVerseSpacing.md, vertical = AutoVerseSpacing.xs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
             Text(
                 arrivalClock(remainingS),
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.headlineSmall,
                 color = colors.success,
-                fontWeight = FontWeight.Bold,
             )
             Text(
                 "${formatDuration(remainingS)} · ${formatDistance(remainingM)}",
-                style = MaterialTheme.typography.labelMedium,
+                style = MaterialTheme.typography.bodyMedium,
                 color = colors.textSecondary,
                 maxLines = 1,
             )
@@ -633,7 +762,7 @@ private fun GuidanceFooter(
             onClick = onToggleVoice,
         )
         Spacer(Modifier.width(AutoVerseSpacing.xs))
-        PrimaryAction(text = NavText.end(LocalNavLanguage.current), onClick = onEnd)
+        PrimaryAction(text = NavText.end(LocalNavLanguage.current), onClick = onEnd, tone = ActionTone.DANGER)
     }
 }
 
@@ -644,8 +773,9 @@ private fun OverlayCard(modifier: Modifier, content: @Composable () -> Unit) {
         modifier = modifier
             .padding(AutoVerseSpacing.sm)
             .widthIn(max = 460.dp)
-            .clip(AutoVerseShapes.small)
-            .background(colors.surface.copy(alpha = 0.96f))
+            .shadow(12.dp, AutoVerseShapes.tile)
+            .clip(AutoVerseShapes.tile)
+            .background(colors.surface.copy(alpha = 0.97f))
             .padding(AutoVerseSpacing.md),
     ) { content() }
 }
