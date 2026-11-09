@@ -52,6 +52,21 @@
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
 
     <!--
+        Music page (1.3.0): AutoVerse's own player for songs on the unit, an
+        SD card or a USB drive. Reading audio files only (no photos/videos);
+        requested from car setup or the Music page, optional. The player runs
+        as a media-playback foreground service so music continues while the
+        driver uses other apps.
+    -->
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!--
         Shizuku (map-display probe) declares minSdk 24 conservatively; the
         library itself works on 23 and every Shizuku call in the app is
         guarded, so the merge is overridden rather than dropping an API-23
@@ -127,6 +142,14 @@
         <package android:name="com.google.android.apps.maps" />
         <package android:name="com.waze" />
 
+        <!--
+            Music page: apps that offer their library to car systems through
+            the standard media browser service (Spotify, JioSaavn, Poweramp…).
+        -->
+        <intent>
+            <action android:name="android.media.browse.MediaBrowserService" />
+        </intent>
+
         <!-- Shizuku: virtual-display helper (map region probe). -->
         <package android:name="moe.shizuku.privileged.api" />
         <package android:name="rikka.sui" />
@@ -170,6 +193,15 @@
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
         </service>
+        <service
+            android:name=".core.music.AutoVersePlaybackService"
+            android:exported="true"
+            android:foregroundServiceType="mediaPlayback">
+            <intent-filter>
+                <action android:name="androidx.media3.session.MediaSessionService" />
+            </intent-filter>
+        </service>
+
             <!-- Shizuku provider: lets AutoVerse talk to the Shizuku app
              (shell privileges via wireless debugging) for the map-display
              probe. No effect unless the user grants it. -->

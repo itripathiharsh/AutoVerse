@@ -473,7 +473,7 @@ private fun presentationAction(
     onRetry: () -> Unit,
 ): Pair<String, () -> Unit>? = when (mode) {
     MediaPresentationMode.ACCESS_REQUIRED -> "Open system settings" to onOpenAccessSettings
-    MediaPresentationMode.NO_SESSION -> "Browse apps" to onBrowseApps
+    MediaPresentationMode.NO_SESSION -> "Pick music" to onBrowseApps
     MediaPresentationMode.ERROR -> "Try again" to onRetry
     else -> null
 }

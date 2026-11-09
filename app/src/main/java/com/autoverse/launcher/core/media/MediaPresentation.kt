@@ -30,7 +30,7 @@ fun mediaPresentation(state: MediaUiState): MediaPresentation = when (state) {
     MediaUiState.NoSession -> MediaPresentation(
         mode = MediaPresentationMode.NO_SESSION,
         headline = "No media playing",
-        message = "Start playback in any app and it will appear here.",
+        message = "Pick a song from a USB drive or a music app, or start any player.",
     )
 
     MediaUiState.Connecting -> MediaPresentation(

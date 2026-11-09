@@ -70,7 +70,7 @@ class MediaCardTest {
     fun noSessionShowsBrowseAppsAction() {
         setCard(MediaUiState.NoSession)
         composeRule.onNodeWithText("No media playing").assertIsDisplayed()
-        composeRule.onNodeWithText("Browse apps").assertIsDisplayed()
+        composeRule.onNodeWithText("Pick music").assertIsDisplayed()
     }
 
     @Test
@@ -78,7 +78,7 @@ class MediaCardTest {
         setCard(MediaUiState.Connecting)
         composeRule.onNodeWithText("Looking for media\u2026").assertIsDisplayed()
         composeRule.onNodeWithText("Try again").assertDoesNotExist()
-        composeRule.onNodeWithText("Browse apps").assertDoesNotExist()
+        composeRule.onNodeWithText("Pick music").assertDoesNotExist()
         composeRule.onNodeWithText("Open system settings").assertDoesNotExist()
     }
 

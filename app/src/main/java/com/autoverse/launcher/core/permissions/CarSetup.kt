@@ -33,6 +33,8 @@ data class CarSetupStatus(
     val bluetooth: Boolean,
     /** AutoVerse is the default Home app. */
     val defaultLauncher: Boolean,
+    /** Reading music files (USB / SD / this unit) for the built-in player. */
+    val musicFiles: Boolean = false,
 ) {
     /** The three things a driver cannot do without: position, GPS switched on, music. */
     val requiredDone: Int
@@ -58,6 +60,7 @@ data class CarSetupStatus(
                 bluetooth = Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
                     granted(context, Manifest.permission.BLUETOOTH_CONNECT),
                 defaultLauncher = isDefaultLauncher(context),
+                musicFiles = com.autoverse.launcher.core.music.hasAudioReadPermission(context),
             )
         }
     }

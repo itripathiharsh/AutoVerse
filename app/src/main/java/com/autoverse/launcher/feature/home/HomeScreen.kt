@@ -153,6 +153,7 @@ fun HomeScreen(
     callState: CallUiState = CallUiState.Idle,
     hasCallPermission: Boolean = false,
     onRequestCallPermission: () -> Unit = {},
+    onOpenMusic: (() -> Unit)? = null,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -169,7 +170,7 @@ fun HomeScreen(
     // without this the music and rail panels would recompose on every tick.
     val media = remember(
         mediaState, loadMediaArtwork, onMediaCommand, onSkipToQueueItem,
-        onOpenMediaAccessSettings, onOpenAppDrawer, onRefreshMedia,
+        onOpenMediaAccessSettings, onOpenAppDrawer, onRefreshMedia, onOpenMusic,
     ) {
         MediaSection(
             state = mediaState,
@@ -183,7 +184,8 @@ fun HomeScreen(
                     }
                 }
             },
-            onBrowseApps = onOpenAppDrawer,
+            // "Pick music" opens AutoVerse's own Music page (USB, apps), not the app drawer.
+            onBrowseApps = onOpenMusic ?: onOpenAppDrawer,
             onRefresh = onRefreshMedia,
         )
     }

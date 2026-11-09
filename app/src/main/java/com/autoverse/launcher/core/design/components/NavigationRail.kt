@@ -17,6 +17,8 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.LibraryMusic
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.material.icons.outlined.Map
 import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material.icons.outlined.Sensors
@@ -44,13 +46,20 @@ import com.autoverse.launcher.core.design.tokens.AutoVerseShapes
 import com.autoverse.launcher.core.design.tokens.AutoVerseSpacing
 
 /** Top-level destinations the rail marks as selected. */
-enum class RailDestination { HOME, APPS, MAPS, NAVIGATION, SPEEDOMETER, OBD, DIAGNOSTICS, SETTINGS }
+enum class RailDestination { HOME, APPS, MAPS, NAVIGATION, MUSIC, SPEEDOMETER, OBD, DIAGNOSTICS, SETTINGS }
 
 /**
- * Total height the labeled rail needs (logo + seven items + paddings). Below
+ * Opens the Music page from any screen's rail. Provided once at the app
+ * root so the seven screens that host the rail need no extra parameter;
+ * null (previews) hides the entry.
+ */
+val LocalOpenMusic = staticCompositionLocalOf<(() -> Unit)?> { null }
+
+/**
+ * Total height the labeled rail needs (logo + eight items + paddings). Below
  * it the rail switches to icon-only items instead of clipping labels.
  */
-private val LABELED_RAIL_MIN_HEIGHT = 392.dp
+private val LABELED_RAIL_MIN_HEIGHT = 440.dp
 
 /** One rail destination: icon, label, click target, selection. */
 private data class RailEntry(
@@ -63,6 +72,7 @@ private val RAIL_ENTRIES = listOf(
     RailEntry(RailDestination.HOME, Icons.Outlined.Home, "Home"),
     RailEntry(RailDestination.APPS, Icons.Outlined.Apps, "Apps"),
     RailEntry(RailDestination.MAPS, Icons.Outlined.Map, "Maps"),
+    RailEntry(RailDestination.MUSIC, Icons.Outlined.LibraryMusic, "Music"),
     RailEntry(RailDestination.SPEEDOMETER, Icons.Outlined.Speed, "Speed"),
     RailEntry(RailDestination.OBD, Icons.Outlined.Sensors, "OBD"),
     RailEntry(RailDestination.DIAGNOSTICS, Icons.Outlined.Memory, "Diagnostics"),
@@ -102,11 +112,14 @@ fun AppNavigationRail(
             ) {
                 BrandMark()
                 Spacer(Modifier.height(AutoVerseSpacing.xxs))
+                val openMusic = LocalOpenMusic.current
                 RAIL_ENTRIES.forEach { entry ->
+                    if (entry.destination == RailDestination.MUSIC && openMusic == null) return@forEach
                     val onClick = when (entry.destination) {
                         RailDestination.HOME -> onOpenHome
                         RailDestination.APPS -> onOpenAppDrawer
                         RailDestination.MAPS, RailDestination.NAVIGATION -> onOpenNavigation
+                        RailDestination.MUSIC -> openMusic ?: {}
                         RailDestination.SPEEDOMETER -> onOpenSpeedometer
                         RailDestination.OBD -> onOpenObd
                         RailDestination.DIAGNOSTICS -> onOpenDiagnostics

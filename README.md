@@ -53,8 +53,17 @@ search uses Photon (OpenStreetMap). Google Maps remains an optional fallback.
 **Apps** — All Apps (~70%) with search and categories; Recently Used (~30%,
 AutoVerse's own launch history), collapsible and clearable.
 
-**Music** — the active media session: artwork, play/pause, skip, and the
-player's queue where it provides one.
+**Music page** — big now-playing view (artwork, seek bar, large play/pause
+and skip) for whatever is playing, plus:
+- **My music** — AutoVerse's own player (Media3/ExoPlayer) for songs on a USB
+  drive, SD card or the unit: songs, albums, artists and folders, search,
+  shuffle. A plugged-in USB stick appears automatically. Keeps playing in
+  the background, handles audio focus, works with steering-wheel buttons.
+- **Music apps** — browse and start playlists/songs from apps that share their
+  library with car systems (most local players, many radio/podcast apps; some
+  streaming apps refuse, and the page says so with an "Open app" button).
+- **Up next** — the playing app's queue, tap to jump.
+Home's music card keeps play/pause/skip and opens the Music page.
 
 **Speed & OBD-II** — Speed page with trip distance/time, top speed and
 weather; Bluetooth ELM327 adapters for RPM, coolant, fuel level and fault codes.

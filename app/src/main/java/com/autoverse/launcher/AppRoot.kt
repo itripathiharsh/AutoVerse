@@ -59,6 +59,9 @@ import com.autoverse.launcher.feature.obd.ObdDiagnosticsScreen
 import com.autoverse.launcher.feature.probe.MapDisplayProbeScreen
 import com.autoverse.launcher.feature.probe.MapEmbedProbeScreen
 import com.autoverse.launcher.core.permissions.CarSetupStatus
+import com.autoverse.launcher.core.design.components.LocalOpenMusic
+import com.autoverse.launcher.core.music.MusicController
+import com.autoverse.launcher.feature.music.MusicScreen
 import com.autoverse.launcher.core.routing.InAppNavigationController
 import com.autoverse.launcher.core.routing.LocalInAppNavigation
 import com.autoverse.launcher.feature.onboarding.FinishSetupScreen
@@ -69,12 +72,13 @@ import com.autoverse.launcher.feature.speedometer.SpeedometerScreen
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 
-enum class Screen { HOME, NAVIGATION, APP_DRAWER, SPEEDOMETER, OBD, SETTINGS, DIAGNOSTICS, MAP_PROBE, MAP_DISPLAY_PROBE }
+enum class Screen { HOME, NAVIGATION, MUSIC, APP_DRAWER, SPEEDOMETER, OBD, SETTINGS, DIAGNOSTICS, MAP_PROBE, MAP_DISPLAY_PROBE }
 
 @Composable
 fun AppRoot(
     viewModel: MainViewModel = viewModel(),
     navigation: InAppNavigationController = viewModel(),
+    music: MusicController = viewModel(),
 ) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val performanceSpec by viewModel.performanceSpec.collectAsStateWithLifecycle()
@@ -302,6 +306,7 @@ fun AppRoot(
             LocalMapEngineState provides mapEngineState,
             LocalPerformanceSpec provides performanceSpec,
             LocalInAppNavigation provides navigation,
+            LocalOpenMusic provides { screen = Screen.MUSIC },
             LocalDensity provides Density(
                 density = baseDensity.density,
                 fontScale = baseDensity.fontScale * settings.textScale,
@@ -348,6 +353,7 @@ fun AppRoot(
                                 drawerQuery = ""
                                 screen = Screen.APP_DRAWER
                             },
+                            onOpenMusic = { screen = Screen.MUSIC },
                             mediaState = mediaState,
                             onMediaCommand = viewModel::sendMediaCommand,
                             onOpenMediaAccessSettings = {
@@ -425,6 +431,31 @@ fun AppRoot(
                                 settingsCategory = null
                                 screen = Screen.SETTINGS
                             },
+                        )
+                    }
+
+                    Screen.MUSIC -> {
+                        MusicScreen(
+                            music = music,
+                            mediaState = mediaState,
+                            loadArtwork = viewModel::loadMediaArtwork,
+                            onCommand = viewModel::sendMediaCommand,
+                            onSeek = viewModel::seekMediaTo,
+                            onSkipToQueue = viewModel::skipMediaToQueue,
+                            onOpenHome = { screen = Screen.HOME },
+                            onOpenAppDrawer = {
+                                drawerQuery = ""
+                                screen = Screen.APP_DRAWER
+                            },
+                            onOpenNavigation = { screen = Screen.NAVIGATION },
+                            onOpenSpeedometer = { screen = Screen.SPEEDOMETER },
+                            onOpenObd = { screen = Screen.OBD },
+                            onOpenDiagnostics = { screen = Screen.DIAGNOSTICS },
+                            onOpenSettings = {
+                                settingsCategory = null
+                                screen = Screen.SETTINGS
+                            },
+                            modifier = Modifier.fillMaxSize(),
                         )
                     }
 

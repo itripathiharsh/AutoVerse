@@ -38,6 +38,8 @@ import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material.icons.outlined.Phone
 import androidx.compose.material.icons.outlined.Shield
+import androidx.compose.material.icons.outlined.Usb
+import com.autoverse.launcher.core.music.audioReadPermission
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -134,6 +136,13 @@ fun CarSetupPanel(
         phoneBlocked = !ok && !canAskAgain(context, Manifest.permission.READ_PHONE_STATE)
         refresh()
     }
+    var musicBlocked by remember { mutableStateOf(false) }
+    val musicLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { ok ->
+        musicBlocked = !ok && !canAskAgain(context, audioReadPermission())
+        refresh()
+    }
     val bluetoothLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { ok ->
@@ -190,6 +199,19 @@ fun CarSetupPanel(
             actionLabel = "Allow",
             onAction = { openMediaAccessSettings(context) },
             hint = if (!status.mediaAccess) "In the list that opens, switch on AutoVerse." else null,
+        ),
+        SetupItem(
+            icon = Icons.Outlined.Usb,
+            title = "Music on USB / SD card",
+            why = "Lets AutoVerse's own player play songs from a USB drive, SD card or " +
+                "this unit. Only audio files are read.",
+            required = false,
+            done = status.musicFiles,
+            actionLabel = if (musicBlocked) "Open settings" else "Allow",
+            onAction = {
+                if (musicBlocked) openAppPermissionSettings(context)
+                else musicLauncher.launch(audioReadPermission())
+            },
         ),
         SetupItem(
             icon = Icons.Outlined.Home,

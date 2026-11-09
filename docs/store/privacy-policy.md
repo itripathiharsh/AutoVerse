@@ -20,6 +20,8 @@ leaves your device, and why.
 | **Destinations you navigate to / save** | Recent and saved destinations | Stored only on the device; clear or remove them anytime (Maps → Destinations) |
 | **Your routes** (start, destination, the route line, turn-by-turn progress) | In-app navigation | Calculated on the device by the built-in routing engine. Never sent anywhere |
 | **Last car position** | Opening the map where the car is | Stored only on the device |
+| **Music files** on this unit, an SD card or a USB drive (audio only) — optional | AutoVerse's own music player and the Music page library | Read on the device only. Never uploaded or copied |
+| **Other music apps' libraries** (lists of playlists/songs those apps choose to share) | Browsing and starting songs from the Music page | Read on the device only, only while the Music page is open |
 | **Now-playing media** (title, artist, artwork, queue) — requires the "notification access" you grant | Music controls on Home | Read on the device only. Notifications themselves are never read, stored or sent |
 | **Phone call state** (ringing / in call, and the caller number only if Android provides it) — optional, only if you enable "Show incoming calls here" | Temporarily showing the call on Home | Stays on the device, never stored |
 | **Bluetooth OBD-II adapter data** (speed, RPM, temperatures, fault codes) — only if you connect an adapter | The OBD screen | Stays on the device |
@@ -63,6 +65,8 @@ and music features cannot work without them. Everything else is optional.
 - **Notification access** (media) — music controls only.
 - **Phone state** — only for the optional incoming-call panel.
 - **Bluetooth connect** — only for an OBD-II adapter you choose to connect.
+- **Music and audio files** — only for playing songs from USB / SD card / this unit.
+- **Foreground service (media playback)** — keeps AutoVerse's music playing while you use other apps.
 - **Internet / network state** — map tiles, weather, place search, road-data downloads, artwork; network status icons.
 
 ## Children

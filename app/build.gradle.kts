@@ -1,4 +1,4 @@
-import java.util.Properties
+﻿import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
@@ -23,8 +23,8 @@ android {
         applicationId = "com.autoverse.launcher"
         minSdk = 23
         targetSdk = 36
-        versionCode = 42
-        versionName = "1.2.0"
+        versionCode = 43
+        versionName = "1.3.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         ndk {
@@ -140,6 +140,8 @@ dependencies {
     implementation(libs.shizuku.provider)
     implementation(libs.kotlinx.coroutines.android)
     implementation(project(":brouter"))
+    implementation(libs.media3.exoplayer)
+    implementation(libs.media3.session)
 
     coreLibraryDesugaring(libs.desugar.jdk.libs)
 
