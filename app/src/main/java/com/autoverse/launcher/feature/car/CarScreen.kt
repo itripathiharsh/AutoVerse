@@ -67,7 +67,6 @@ import com.autoverse.launcher.core.car.HealthReport
 import com.autoverse.launcher.core.car.Reminder
 import com.autoverse.launcher.core.car.ReminderKind
 import com.autoverse.launcher.core.car.ReminderUrgency
-import com.autoverse.launcher.core.car.SpeakerTone
 import com.autoverse.launcher.core.car.reminderDetail
 import com.autoverse.launcher.core.car.reminderUrgency
 import com.autoverse.launcher.core.design.LocalAutoVerseColors
@@ -355,43 +354,10 @@ private fun RemindersSection(car: CarController) {
 
 // ---- speaker test ----------------------------------------------------------------
 
+/** Per-speaker test for 2 to 6 speakers + subwoofer; the panel lives in SpeakerTestPanel.kt. */
 @Composable
 private fun SpeakerSection(car: CarController) {
-    val colors = LocalAutoVerseColors.current
-    val playing by car.playingTone.collectAsStateWithLifecycle()
-    Column(Modifier.fillMaxSize()) {
-        Text("Speaker test", style = MaterialTheme.typography.titleLarge, color = colors.textPrimary)
-        Text(
-            "Set the volume to about a third first. Front/rear balance is in your head unit's own sound settings.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = colors.textSecondary,
-        )
-        Spacer(Modifier.height(AutoVerseSpacing.md))
-        Column(verticalArrangement = Arrangement.spacedBy(AutoVerseSpacing.xs)) {
-            SpeakerTone.entries.chunked(2).forEach { row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(AutoVerseSpacing.xs)) {
-                    row.forEach { tone ->
-                        val active = playing == tone
-                        Column(
-                            Modifier
-                                .weight(1f)
-                                .clip(AutoVerseShapes.small)
-                                .background(if (active) colors.accent else colors.surfaceHighlight)
-                                .clickable { if (active) car.stopTone() else car.playTone(tone) }
-                                .padding(AutoVerseSpacing.md),
-                        ) {
-                            Text(
-                                (if (active) "■ " else "▶ ") + tone.label,
-                                style = MaterialTheme.typography.titleMedium,
-                                color = if (active) colors.onAccent else colors.textPrimary,
-                            )
-                            Text(tone.detail, style = MaterialTheme.typography.bodySmall, color = if (active) colors.onAccent else colors.textSecondary)
-                        }
-                    }
-                }
-            }
-        }
-    }
+    SpeakerTestPanel(car)
 }
 
 // ---- head unit check -------------------------------------------------------------

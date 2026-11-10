@@ -1,6 +1,8 @@
 package com.autoverse.launcher.feature.music
 
 import android.content.Context
+import android.content.Intent
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -30,6 +32,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Album
 import androidx.compose.material.icons.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.Bluetooth
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.LibraryMusic
 import androidx.compose.material.icons.outlined.MusicNote
@@ -50,10 +53,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -89,15 +94,20 @@ import com.autoverse.launcher.core.music.LibraryView
 import com.autoverse.launcher.core.music.LocalTrack
 import com.autoverse.launcher.core.music.MusicApp
 import com.autoverse.launcher.core.music.MusicController
+import com.autoverse.launcher.core.music.PHONE_SOURCE_LABEL
+import com.autoverse.launcher.core.music.PhoneSourceState
 import com.autoverse.launcher.core.music.audioReadPermission
 import com.autoverse.launcher.core.music.filterTracks
 import com.autoverse.launcher.core.music.groupTracks
+import com.autoverse.launcher.core.music.isBluetoothPackage
+import com.autoverse.launcher.core.music.isBluetoothSource
 import com.autoverse.launcher.core.permissions.openMediaAccessSettings
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private const val TAB_QUEUE = "queue"
 private const val TAB_LOCAL = "local"
+private const val TAB_PHONE = "phone"
 
 /**
  * The Music page: what's playing (any app, or AutoVerse's own player) with
@@ -161,6 +171,7 @@ fun MusicScreen(
             LibraryPanel(
                 music = music,
                 mediaState = mediaState,
+                onCommand = onCommand,
                 onSkipToQueue = onSkipToQueue,
                 modifier = Modifier
                     .weight(0.58f)
@@ -349,11 +360,13 @@ private fun BigControl(icon: ImageVector, label: String, enabled: Boolean, prima
 private fun LibraryPanel(
     music: MusicController,
     mediaState: MediaUiState,
+    onCommand: suspend (MediaCommand) -> MediaCommandOutcome,
     onSkipToQueue: suspend (Long) -> MediaCommandOutcome,
     modifier: Modifier,
 ) {
     val colors = LocalAutoVerseColors.current
     val apps by music.musicApps.collectAsStateWithLifecycle()
+    val checkingApps by music.checkingApps.collectAsStateWithLifecycle()
     val library by music.libraryState.collectAsStateWithLifecycle()
     val active = mediaState as? MediaUiState.Active
     val hasQueue = active?.queue?.isNotEmpty() == true
@@ -365,6 +378,16 @@ private fun LibraryPanel(
                 item { TabChip("Up next", Icons.Outlined.QueueMusic, tab == TAB_QUEUE) { tab = TAB_QUEUE; music.closeApp() } }
             }
             item { TabChip("My music", Icons.Outlined.Usb, tab == TAB_LOCAL) { tab = TAB_LOCAL; music.closeApp() } }
+            item {
+                TabChip(PHONE_SOURCE_LABEL, Icons.Outlined.Bluetooth, tab == TAB_PHONE) {
+                    // PhoneLibrary connects when it appears; a second tap re-checks.
+                    if (tab == TAB_PHONE) {
+                        music.openPhone()
+                    } else {
+                        tab = TAB_PHONE
+                    }
+                }
+            }
             items(apps, key = { it.packageName }) { app ->
                 TabChip(app.label, Icons.Outlined.LibraryMusic, tab == app.packageName) {
                     tab = app.packageName
@@ -376,13 +399,18 @@ private fun LibraryPanel(
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when {
                 tab == TAB_QUEUE && active != null -> QueueList(active, onSkipToQueue)
+                tab == TAB_PHONE -> PhoneLibrary(
+                    music = music,
+                    btSession = active?.takeIf { isBluetoothPackage(it.packageName) },
+                    onCommand = onCommand,
+                )
                 tab == TAB_LOCAL || apps.none { it.packageName == tab } -> LocalLibrary(music, library)
                 else -> AppLibrary(music, apps.first { it.packageName == tab })
             }
         }
-        if (apps.isEmpty() && tab == TAB_LOCAL) {
+        if (apps.isEmpty() && !checkingApps && tab == TAB_LOCAL) {
             Text(
-                "No music apps found that share their library. Spotify, JioSaavn and others appear here when installed.",
+                "No music apps found that share their library. Apps like Spotify or JioSaavn appear here when they let car systems list their songs.",
                 style = MaterialTheme.typography.labelSmall,
                 color = colors.textFaint,
             )
@@ -584,7 +612,7 @@ private fun AppLibrary(music: MusicController, app: MusicApp) {
                     Spacer(Modifier.width(AutoVerseSpacing.xs))
                 }
                 Text(s.path.last().first, style = MaterialTheme.typography.titleSmall, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                TextAction(text = "Resume", onClick = {
+                TextAction(text = "Resume", icon = Icons.Outlined.PlayArrow, onClick = {
                     note = if (music.resumeApp()) null else "${app.label} didn't respond — open it once, then try again"
                 })
                 Icon(
@@ -622,6 +650,206 @@ private fun AppLibrary(music: MusicController, app: MusicApp) {
                 }
             }
         }
+    }
+}
+
+/**
+ * The phone source: the phone's player over Bluetooth (AVRCP) through the
+ * system Bluetooth browser. With no phone there is nothing to resume, so it
+ * explains how to connect one instead of offering a dead button.
+ */
+@Composable
+private fun PhoneLibrary(
+    music: MusicController,
+    /** The phone's media session as seen by the shared session repository, if it is the active one. */
+    btSession: MediaUiState.Active?,
+    onCommand: suspend (MediaCommand) -> MediaCommandOutcome,
+) {
+    val colors = LocalAutoVerseColors.current
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val phone by music.phoneState.collectAsStateWithLifecycle()
+    val browse by music.browseState.collectAsStateWithLifecycle()
+    val latestSession by rememberUpdatedState(btSession)
+    var note by remember { mutableStateOf<String?>(null) }
+    var playRequests by remember { mutableIntStateOf(0) }
+
+    LaunchedEffect(Unit) { music.openPhone() }
+
+    // Some units expose the phone only as an active media session (no browser
+    // service); control it through the shared session then.
+    val viaSession = phone !is PhoneSourceState.Connected && btSession != null
+    val connected = (phone as? PhoneSourceState.Connected)
+        ?: btSession?.let { PhoneSourceState.Connected(title = it.title, artist = it.artist, playing = it.status.isPlaying) }
+
+    // Play is a request to the phone; if it hasn't started after a few seconds, say so.
+    LaunchedEffect(playRequests) {
+        if (playRequests == 0) return@LaunchedEffect
+        delay(3_000)
+        val playing = (music.phoneState.value as? PhoneSourceState.Connected)?.playing == true ||
+            latestSession?.status?.isPlaying == true
+        if (!playing) note = "Your phone didn't start playing. Unlock it and open a music app on it once, then try again."
+    }
+
+    if (connected == null) {
+        if (phone is PhoneSourceState.Checking) {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                CircularProgressIndicator()
+                Spacer(Modifier.size(AutoVerseSpacing.sm))
+                Text("Looking for your phone…", style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
+            }
+        } else {
+            PhoneNotConnected(
+                onPair = { openBluetoothSettings(context) },
+                onCheckAgain = { note = null; music.openPhone() },
+            )
+        }
+        return
+    }
+
+    Column(Modifier.fillMaxSize()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Outlined.Bluetooth, contentDescription = null, tint = colors.accent, modifier = Modifier.size(28.dp))
+            Spacer(Modifier.width(AutoVerseSpacing.sm))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    connected.title ?: "Phone connected",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = colors.textPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    connected.artist ?: if (connected.playing) "Playing on your phone" else "Tap Play to start your phone's music",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.textFaint,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Spacer(Modifier.width(AutoVerseSpacing.xs))
+            PrimaryAction(
+                text = if (connected.playing) "Pause" else "Play",
+                icon = if (connected.playing) Icons.Outlined.Pause else Icons.Outlined.PlayArrow,
+                onClick = {
+                    note = null
+                    if (connected.playing) {
+                        if (viaSession) {
+                            scope.launch { onCommand(MediaCommand.PAUSE) }
+                        } else {
+                            music.pausePhone()
+                        }
+                    } else {
+                        val sent = if (viaSession) {
+                            scope.launch { onCommand(MediaCommand.PLAY) }
+                            true
+                        } else {
+                            music.playPhone()
+                        }
+                        if (sent) {
+                            playRequests++
+                        } else {
+                            note = "Couldn't reach your phone. Check it is connected in Bluetooth settings."
+                        }
+                    }
+                },
+            )
+            TextAction(
+                text = "Next",
+                icon = Icons.Outlined.SkipNext,
+                quiet = true,
+                onClick = {
+                    note = null
+                    if (viaSession) {
+                        scope.launch { onCommand(MediaCommand.NEXT) }
+                    } else if (!music.nextPhone()) {
+                        note = "Couldn't reach your phone. Check it is connected in Bluetooth settings."
+                    }
+                },
+            )
+        }
+        note?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = colors.warning) }
+        Spacer(Modifier.size(AutoVerseSpacing.sm))
+
+        val listing = (browse as? AppBrowseState.Listing)
+            ?.takeIf { !viaSession && isBluetoothSource(it.app.packageName, it.app.serviceClass) }
+            ?: return@Column
+        val items = listing.items
+        when {
+            items == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+            items.isEmpty() -> Text(
+                "Your phone doesn't share its song list over Bluetooth. Pick songs on the phone; Play, Pause and Next work here.",
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.textFaint,
+                modifier = Modifier.padding(AutoVerseSpacing.sm),
+            )
+            else -> {
+                if (listing.path.size > 1) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Outlined.ArrowBack,
+                            contentDescription = "Back",
+                            tint = colors.textSecondary,
+                            modifier = Modifier.size(28.dp).clickable { music.browseBack() },
+                        )
+                        Spacer(Modifier.width(AutoVerseSpacing.xs))
+                        Text(
+                            listing.path.last().first,
+                            style = MaterialTheme.typography.titleSmall,
+                            color = colors.textPrimary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+                LazyColumn {
+                    items(items, key = { it.mediaId + it.title }) { item ->
+                        SongRow(
+                            title = item.title,
+                            subtitle = item.subtitle,
+                            icon = if (item.browsable) Icons.Outlined.Folder else Icons.Outlined.MusicNote,
+                            onClick = {
+                                if (item.browsable) {
+                                    music.openFolder(item)
+                                } else if (item.playable) {
+                                    note = if (music.playFromApp(item)) null else "Your phone didn't start that song"
+                                }
+                            },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PhoneNotConnected(onPair: () -> Unit, onCheckAgain: () -> Unit) {
+    val colors = LocalAutoVerseColors.current
+    Column(
+        modifier = Modifier.fillMaxSize().padding(AutoVerseSpacing.lg),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Icon(Icons.Outlined.Bluetooth, contentDescription = null, tint = colors.accent, modifier = Modifier.size(44.dp))
+        Spacer(Modifier.size(AutoVerseSpacing.sm))
+        Text("No phone connected over Bluetooth", style = MaterialTheme.typography.titleMedium, color = colors.textPrimary, textAlign = TextAlign.Center)
+        Spacer(Modifier.size(AutoVerseSpacing.xxs))
+        Text(
+            "Play music on a paired phone and it shows here, with Play, Pause and Next. Car → Phone has a step-by-step pairing guide.",
+            style = MaterialTheme.typography.bodySmall,
+            color = colors.textSecondary,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.widthIn(max = 420.dp),
+        )
+        Spacer(Modifier.size(AutoVerseSpacing.md))
+        PrimaryAction(text = "Pair phone", onClick = onPair, icon = Icons.Outlined.Bluetooth)
+        Spacer(Modifier.size(AutoVerseSpacing.xs))
+        TextAction(text = "Check again", onClick = onCheckAgain, quiet = true)
     }
 }
 
@@ -682,6 +910,13 @@ private fun CenteredMessage(icon: ImageVector, title: String, body: String, acti
 private fun clock(ms: Long): String {
     val s = (ms / 1000).coerceAtLeast(0)
     return "%d:%02d".format(s / 60, s % 60)
+}
+
+private fun openBluetoothSettings(context: Context) {
+    try {
+        context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    } catch (_: Exception) {
+    }
 }
 
 private fun launchPackage(context: Context, packageName: String) {

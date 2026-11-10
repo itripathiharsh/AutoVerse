@@ -9,7 +9,10 @@ import com.autoverse.launcher.core.location.SpeedometerData
 import com.autoverse.launcher.core.routing.GeoPoint
 import com.autoverse.launcher.core.routing.RoutingDataStore
 import com.autoverse.launcher.core.routing.distanceMeters
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -52,6 +55,23 @@ class CarController(app: Application) : AndroidViewModel(app) {
     private val _playing = MutableStateFlow<SpeakerTone?>(null)
     val playingTone: StateFlow<SpeakerTone?> = _playing.asStateFlow()
     private var toneJob: Job? = null
+
+    private val _speakerLayout = MutableStateFlow(SpeakerLayout.fromName(prefs.getString(KEY_SPEAKER_LAYOUT, null)))
+    val speakerLayout: StateFlow<SpeakerLayout> = _speakerLayout.asStateFlow()
+
+    /** Null until the unit's audio output has been checked. */
+    private val _speakerOutput = MutableStateFlow<SpeakerOutputInfo?>(null)
+    val speakerOutput: StateFlow<SpeakerOutputInfo?> = _speakerOutput.asStateFlow()
+
+    private val _playingSpeaker = MutableStateFlow<SpeakerPosition?>(null)
+    val playingSpeaker: StateFlow<SpeakerPosition?> = _playingSpeaker.asStateFlow()
+
+    /** The speaker played most recently (kept after it stops, for the fader hint). */
+    private val _lastSpeaker = MutableStateFlow<SpeakerPosition?>(null)
+    val lastSpeaker: StateFlow<SpeakerPosition?> = _lastSpeaker.asStateFlow()
+
+    private val _walkingSpeakers = MutableStateFlow(false)
+    val walkingSpeakers: StateFlow<Boolean> = _walkingSpeakers.asStateFlow()
 
     // ---- automatic trip log -------------------------------------------------
 
@@ -159,22 +179,93 @@ class CarController(app: Application) : AndroidViewModel(app) {
 
     // ---- speaker test -------------------------------------------------------
 
+    fun setSpeakerLayout(layout: SpeakerLayout) {
+        stopTone()
+        _speakerLayout.value = layout
+        prefs.edit().putString(KEY_SPEAKER_LAYOUT, layout.name).apply()
+    }
+
+    /** Checks (again) whether the unit can address speakers directly. */
+    fun refreshSpeakerOutput() {
+        viewModelScope.launch {
+            _speakerOutput.value = SpeakerTest.detect(getApplication<Application>())
+        }
+    }
+
+    /** One of the extra tones (sweep, phase, ...). */
     fun playTone(tone: SpeakerTone) {
-        toneJob?.cancel()
-        toneJob = viewModelScope.launch {
+        startTone {
             _playing.value = tone
-            try {
-                SpeakerTest.play(tone)
-            } catch (_: Exception) {
-            } finally {
-                if (_playing.value == tone) _playing.value = null
+            SpeakerTest.play(tone)
+        }
+    }
+
+    /** A tone on exactly one speaker, as far as the unit allows (see [SpeakerRoute.needsFader]). */
+    fun playSpeaker(position: SpeakerPosition) {
+        startTone {
+            playOneSpeaker(position, seconds = 2.5)
+        }
+    }
+
+    /** "Play all in turn": every speaker of the layout, clockwise, about 1.5 s each. */
+    fun walkSpeakers() {
+        val order = _speakerLayout.value.walkOrder
+        startTone {
+            _walkingSpeakers.value = true
+            order.forEachIndexed { i, position ->
+                playOneSpeaker(position, seconds = 1.5)
+                if (i < order.lastIndex) {
+                    _playingSpeaker.value = null
+                    delay(250)
+                }
             }
         }
     }
 
     fun stopTone() {
         toneJob?.cancel()
+        toneJob = null
+        clearToneState()
+    }
+
+    private suspend fun playOneSpeaker(position: SpeakerPosition, seconds: Double) {
+        val info = _speakerOutput.value
+            ?: SpeakerTest.detect(getApplication<Application>()).also { _speakerOutput.value = it }
+        _playingSpeaker.value = position
+        _lastSpeaker.value = position
+        val used = SpeakerTest.playSpeaker(position, info.output, seconds)
+        // The multichannel track failed to open: show the stereo mode from now on.
+        if (used != info.output) _speakerOutput.value = info.copy(output = used)
+    }
+
+    /**
+     * Runs one tone job at a time: the previous one is cancelled and fully
+     * finished (its AudioTrack released) before the next starts.
+     */
+    private fun startTone(block: suspend () -> Unit) {
+        val previous = toneJob
+        previous?.cancel()
+        val job = viewModelScope.launch(start = CoroutineStart.LAZY) {
+            previous?.join()
+            clearToneState()
+            try {
+                block()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // No audio output available: just stop quietly.
+            } finally {
+                if (toneJob === coroutineContext[Job]) clearToneState()
+            }
+        }
+        toneJob = job
+        job.start()
+    }
+
+    private fun clearToneState() {
         _playing.value = null
+        _playingSpeaker.value = null
+        _walkingSpeakers.value = false
     }
 
     // ---- head unit health ---------------------------------------------------
@@ -248,5 +339,6 @@ class CarController(app: Application) : AndroidViewModel(app) {
         const val KEY_LOGGED_KM = "logged_km"
         const val KEY_ODO_BASE = "odo_base"
         const val KEY_ODO_LOGGED_AT_BASE = "odo_logged_at_base"
+        const val KEY_SPEAKER_LAYOUT = "speaker_layout"
     }
 }

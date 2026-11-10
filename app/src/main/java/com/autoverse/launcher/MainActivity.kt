@@ -42,10 +42,13 @@ class MainActivity : ComponentActivity() {
 
 /** The text of a shared / opened location, or null for any other intent (e.g. HOME). */
 internal fun sharedLocationText(intent: Intent?): String? = when (intent?.action) {
-    Intent.ACTION_SEND -> listOfNotNull(
-        intent.getStringExtra(Intent.EXTRA_SUBJECT),
-        intent.getStringExtra(Intent.EXTRA_TEXT),
-    ).joinToString("\n").takeIf { it.isNotBlank() }
+    Intent.ACTION_SEND -> {
+        // getCharSequenceExtra: apps may share a Spanned text, which getStringExtra drops (null).
+        val text = intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()?.trim()
+        val subject = intent.getCharSequenceExtra(Intent.EXTRA_SUBJECT)?.toString()?.trim()
+            ?.takeIf { it.isNotEmpty() && text?.contains(it) != true }
+        listOfNotNull(subject, text).joinToString("\n").takeIf { it.isNotBlank() }
+    }
     Intent.ACTION_VIEW -> intent.dataString?.takeIf { it.isNotBlank() }
     else -> null
 }

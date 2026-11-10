@@ -23,8 +23,8 @@ android {
         applicationId = "com.autoverse.launcher"
         minSdk = 23
         targetSdk = 36
-        versionCode = 49
-        versionName = "1.7.0"
+        versionCode = 50
+        versionName = "1.7.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         ndk {

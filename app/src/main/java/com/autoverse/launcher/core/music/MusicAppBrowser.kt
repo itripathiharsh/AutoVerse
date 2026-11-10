@@ -3,9 +3,14 @@ package com.autoverse.launcher.core.music
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.media.MediaMetadata
 import android.media.browse.MediaBrowser
 import android.media.session.MediaController
+import android.media.session.PlaybackState
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.service.media.MediaBrowserService
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -37,27 +42,77 @@ data class BrowseItem(
  */
 class MusicAppBrowser(context: Context) {
     private val appContext = context.applicationContext
+    private val mainHandler = Handler(Looper.getMainLooper())
     private var browser: MediaBrowser? = null
     private var connectedApp: MusicApp? = null
     private var controller: MediaController? = null
 
-    /** Every installed app exposing a media browser service (Spotify, JioSaavn, Poweramp…). */
-    fun installedMusicApps(): List<MusicApp> = try {
+    /** Called on the main thread when the connected app's playback state or track changes. */
+    var onSessionChanged: (() -> Unit)? = null
+
+    private val sessionCallback = object : MediaController.Callback() {
+        override fun onPlaybackStateChanged(state: PlaybackState?) {
+            onSessionChanged?.invoke()
+        }
+
+        override fun onMetadataChanged(metadata: MediaMetadata?) {
+            onSessionChanged?.invoke()
+        }
+
+        override fun onSessionDestroyed() {
+            onSessionChanged?.invoke()
+        }
+    }
+
+    /**
+     * Installed apps exposing a media browser service (Spotify, JioSaavn,
+     * Poweramp…), with the system Bluetooth browser split out as the phone
+     * source and known non-music services (Google app, Play services…)
+     * dropped. App sources still need [hasMusicContent] before showing.
+     */
+    fun discoverSources(): MusicSources = try {
         val pm = appContext.packageManager
-        pm.queryIntentServices(Intent(MediaBrowserService.SERVICE_INTERFACE), 0)
+        val found = pm.queryIntentServices(Intent(MediaBrowserService.SERVICE_INTERFACE), 0)
             .mapNotNull { info ->
                 val s = info.serviceInfo ?: return@mapNotNull null
-                if (s.packageName == appContext.packageName) return@mapNotNull null
                 MusicApp(
                     packageName = s.packageName,
                     serviceClass = s.name,
-                    label = s.applicationInfo.loadLabel(pm).toString(),
+                    label = launcherLabel(pm, s.packageName)
+                        ?: s.applicationInfo?.loadLabel(pm)?.toString()
+                        ?: s.packageName,
                 )
             }
-            .distinctBy { it.packageName }
-            .sortedBy { it.label.lowercase() }
+        selectMusicSources(found, appContext.packageName)
     } catch (_: Exception) {
-        emptyList()
+        MusicSources(bluetooth = null, apps = emptyList())
+    }
+
+    /** The name under the app's icon in the launcher (what the driver knows it as). */
+    private fun launcherLabel(pm: PackageManager, packageName: String): String? = try {
+        pm.getLaunchIntentForPackage(packageName)
+            ?.let { pm.resolveActivity(it, 0) }
+            ?.loadLabel(pm)
+            ?.toString()
+            ?.takeIf { it.isNotBlank() }
+    } catch (_: Exception) {
+        null
+    }
+
+    /** What the connected app's media session reports right now; null when not connected. */
+    fun session(): SessionSnapshot? {
+        val c = controller ?: return null
+        return try {
+            val metadata = c.metadata
+            SessionSnapshot(
+                stateCode = c.playbackState?.state,
+                title = metadata?.getString(MediaMetadata.METADATA_KEY_TITLE),
+                artist = metadata?.getString(MediaMetadata.METADATA_KEY_ARTIST)
+                    ?: metadata?.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST),
+            )
+        } catch (_: Exception) {
+            null
+        }
     }
 
     /** Connects to [app]; null when the app refuses outside players. */
@@ -71,7 +126,9 @@ class MusicAppBrowser(context: Context) {
                     override fun onConnected() {
                         val connected = b ?: return cont.resumeOnce(null)
                         controller = try {
-                            MediaController(appContext, connected.sessionToken)
+                            MediaController(appContext, connected.sessionToken).also {
+                                it.registerCallback(sessionCallback, mainHandler)
+                            }
                         } catch (_: Exception) {
                             null
                         }
@@ -140,7 +197,22 @@ class MusicAppBrowser(context: Context) {
         false
     }
 
+    fun pause(): Boolean = try {
+        controller?.transportControls?.pause()
+        controller != null
+    } catch (_: Exception) {
+        false
+    }
+
+    fun skipToNext(): Boolean = try {
+        controller?.transportControls?.skipToNext()
+        controller != null
+    } catch (_: Exception) {
+        false
+    }
+
     fun disconnect() {
+        runCatching { controller?.unregisterCallback(sessionCallback) }
         runCatching { browser?.disconnect() }
         browser = null
         controller = null

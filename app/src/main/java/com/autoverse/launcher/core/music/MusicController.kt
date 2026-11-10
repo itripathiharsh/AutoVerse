@@ -5,6 +5,7 @@ import android.content.ComponentName
 import android.database.ContentObserver
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -12,7 +13,11 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -55,8 +60,19 @@ class MusicController(app: Application) : AndroidViewModel(app) {
     private val _library = MutableStateFlow(LibraryState(permissionGranted = hasAudioReadPermission(app)))
     val libraryState: StateFlow<LibraryState> = _library.asStateFlow()
 
+    /** App sources whose library root actually lists something (never empty or refusing apps). */
     private val _apps = MutableStateFlow<List<MusicApp>>(emptyList())
     val musicApps: StateFlow<List<MusicApp>> = _apps.asStateFlow()
+
+    /** True while newly found apps are being checked for a usable library. */
+    private val _checkingApps = MutableStateFlow(false)
+    val checkingApps: StateFlow<Boolean> = _checkingApps.asStateFlow()
+
+    /** The system Bluetooth browser (phone music), when this unit has one. */
+    private var bluetoothService: MusicApp? = null
+
+    private val _phone = MutableStateFlow<PhoneSourceState>(PhoneSourceState.Checking)
+    val phoneState: StateFlow<PhoneSourceState> = _phone.asStateFlow()
 
     private val _browse = MutableStateFlow<AppBrowseState>(AppBrowseState.None)
     val browseState: StateFlow<AppBrowseState> = _browse.asStateFlow()
@@ -64,12 +80,17 @@ class MusicController(app: Application) : AndroidViewModel(app) {
     private var player: MediaController? = null
     private var reloadJob: Job? = null
     private var browseJob: Job? = null
+    private var probeJob: Job? = null
+
+    /** Probe verdicts per service: has content, and when it was checked (elapsed realtime). */
+    private val probeVerdicts = mutableMapOf<String, Pair<Boolean, Long>>()
 
     private val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
         override fun onChange(selfChange: Boolean) = scheduleReload()
     }
 
     init {
+        appBrowser.onSessionChanged = ::onBrowserSessionChanged
         refresh()
         try {
             app.contentResolver.registerContentObserver(library.contentUri, true, observer)
@@ -77,13 +98,62 @@ class MusicController(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Re-reads permission, apps and the library (also called when the page opens). */
+    /** Re-reads permission, sources and the library (also called when the page opens). */
     fun refresh() {
-        _apps.value = appBrowser.installedMusicApps()
+        val sources = appBrowser.discoverSources()
+        bluetoothService = sources.bluetooth
+        probeSources(sources.apps)
         val granted = hasAudioReadPermission(getApplication())
         _library.value = _library.value.copy(permissionGranted = granted)
         if (granted) scheduleReload(immediate = true)
     }
+
+    /**
+     * Shows only app sources whose library root lists something. Apps already
+     * known to have content show straight away; new ones (and ones that were
+     * empty a while ago, e.g. not signed in yet) are connected to and checked
+     * in parallel with their own browser, so the open source is not disturbed.
+     */
+    private fun probeSources(candidates: List<MusicApp>) {
+        probeJob?.cancel()
+        _apps.value = candidates.filter { probeVerdicts[probeKey(it)]?.first == true || isKnownMusicApp(it.packageName) }
+        val now = SystemClock.elapsedRealtime()
+        val toProbe = candidates.filter { app ->
+            val verdict = probeVerdicts[probeKey(app)]
+            verdict == null || (!verdict.first && now - verdict.second > REPROBE_EMPTY_MS)
+        }
+        if (toProbe.isEmpty()) {
+            _checkingApps.value = false
+            return
+        }
+        _checkingApps.value = true
+        probeJob = viewModelScope.launch {
+            val results = coroutineScope {
+                toProbe.map { app -> async { app to probeHasContent(app) } }.awaitAll()
+            }
+            val checkedAt = SystemClock.elapsedRealtime()
+            results.forEach { (app, ok) -> probeVerdicts[probeKey(app)] = ok to checkedAt }
+            _apps.value = candidates.filter { probeVerdicts[probeKey(it)]?.first == true || isKnownMusicApp(it.packageName) }
+            _checkingApps.value = false
+        }
+    }
+
+    /** Connects to [app] with a throwaway browser; true when its root lists something. */
+    private suspend fun probeHasContent(app: MusicApp): Boolean {
+        val probe = MusicAppBrowser(getApplication())
+        return try {
+            val root = probe.connect(app)
+            root != null && hasMusicContent(probe.children(root))
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            false
+        } finally {
+            probe.disconnect()
+        }
+    }
+
+    private fun probeKey(app: MusicApp) = "${app.packageName}/${app.serviceClass}"
 
     /** A USB stick being indexed fires many change events; reload once it settles. */
     private fun scheduleReload(immediate: Boolean = false) {
@@ -206,7 +276,81 @@ class MusicController(app: Application) : AndroidViewModel(app) {
         _browse.value = AppBrowseState.None
     }
 
+    // ---- phone over Bluetooth ----------------------------------------------
+
+    /**
+     * Opens the phone source: connects to the system Bluetooth browser and
+     * decides whether a phone is really there (device folder in the root, or
+     * a live playback state) — not just whether the service answered.
+     */
+    fun openPhone() {
+        browseJob?.cancel()
+        val bt = bluetoothService
+        if (bt == null) {
+            // This unit's Bluetooth stack doesn't share phone music with apps.
+            appBrowser.disconnect()
+            _browse.value = AppBrowseState.None
+            _phone.value = PhoneSourceState.NotConnected
+            return
+        }
+        _phone.value = PhoneSourceState.Checking
+        _browse.value = AppBrowseState.Connecting(bt)
+        browseJob = viewModelScope.launch {
+            val root = appBrowser.connect(bt)
+            if (root == null) {
+                _browse.value = AppBrowseState.Refused(bt)
+                _phone.value = PhoneSourceState.NotConnected
+                return@launch
+            }
+            val path = listOf(bt.label to root)
+            // With no phone the stack reports "disconnected" at once, while its
+            // root may never answer; show the empty state now, keep listening.
+            if (phoneReportsDisconnected(appBrowser.session())) _phone.value = PhoneSourceState.NotConnected
+            _browse.value = AppBrowseState.Listing(bt, path, null)
+            val items = appBrowser.children(root) ?: emptyList()
+            _browse.value = AppBrowseState.Listing(bt, path, items)
+            _phone.value = phoneSourceState(items.size, appBrowser.session())
+        }
+    }
+
+    /** Starts the phone's player (AVRCP play); false when the request couldn't be sent. */
+    fun playPhone(): Boolean {
+        if (!isPhoneOpen()) return false
+        player?.takeIf { it.isConnected && it.isPlaying }?.pause()
+        return appBrowser.resume()
+    }
+
+    fun pausePhone(): Boolean = isPhoneOpen() && appBrowser.pause()
+
+    fun nextPhone(): Boolean = isPhoneOpen() && appBrowser.skipToNext()
+
+    private fun isPhoneOpen(): Boolean {
+        val bt = bluetoothService ?: return false
+        return (_browse.value as? AppBrowseState.Listing)?.app?.packageName == bt.packageName
+    }
+
+    /** The Bluetooth session changed: a phone connected, disconnected, or changed track. */
+    private fun onBrowserSessionChanged() {
+        if (!isPhoneOpen()) return
+        val listing = _browse.value as? AppBrowseState.Listing ?: return
+        val atRoot = listing.path.size <= 1
+        val rootCount = if (atRoot) listing.items?.size ?: 0 else 1
+        val wasConnected = _phone.value is PhoneSourceState.Connected
+        val now = phoneSourceState(rootCount, appBrowser.session())
+        _phone.value = now
+        // A phone that just connected shows up as a device folder: list it.
+        if (!wasConnected && now is PhoneSourceState.Connected && atRoot && listing.items?.isEmpty() == true) {
+            browseJob?.cancel()
+            browseJob = viewModelScope.launch {
+                val rootId = listing.path.first().second
+                val items = appBrowser.children(rootId) ?: emptyList()
+                _browse.value = listing.copy(items = items)
+            }
+        }
+    }
+
     override fun onCleared() {
+        appBrowser.onSessionChanged = null
         try {
             getApplication<Application>().contentResolver.unregisterContentObserver(observer)
         } catch (_: Exception) {
@@ -214,6 +358,11 @@ class MusicController(app: Application) : AndroidViewModel(app) {
         appBrowser.disconnect()
         player?.release()
         super.onCleared()
+    }
+
+    private companion object {
+        /** An app that was empty (not signed in, never opened) is checked again after this long. */
+        const val REPROBE_EMPTY_MS = 2 * 60_000L
     }
 }
 

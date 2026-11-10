@@ -93,7 +93,14 @@ class SystemMediaSessionRepository(context: Context) : MediaSessionRepository {
                 return
             }
 
-            val candidates = controllers.map { controller ->
+            // Sessions from non-music apps (the Google app, Assistant, Maps…) that
+            // have no track and aren't playing are noise: never show "Google" as music.
+            val musicControllers = controllers.filterNot { c ->
+                com.autoverse.launcher.core.music.isNonMusicPackage(c.packageName) &&
+                    c.metadata?.getString(android.media.MediaMetadata.METADATA_KEY_TITLE).isNullOrBlank() &&
+                    c.playbackState?.state != PlaybackState.STATE_PLAYING
+            }
+            val candidates = musicControllers.map { controller ->
                 MediaSessionCandidate(
                     key = candidateKeyOf(controller),
                     playbackStateCode = controller.playbackState?.state
@@ -103,7 +110,7 @@ class SystemMediaSessionRepository(context: Context) : MediaSessionRepository {
             }
             val selected = selectMediaSession(candidates)
             val controller = selected?.let { candidate ->
-                controllers.firstOrNull { candidateKeyOf(it) == candidate.key }
+                musicControllers.firstOrNull { candidateKeyOf(it) == candidate.key }
             }
 
             if (controller == null) {

@@ -13,6 +13,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
@@ -300,41 +301,197 @@ class InAppNavigationController(app: Application) : AndroidViewModel(app) {
      * Short links are opened once to read where they point.
      */
     fun openShared(raw: String) {
-        when (val s = parseSharedLocation(raw)) {
-            null -> Unit
-            is SharedLocation.Point -> navigateTo(sharedPlace(s))
-            is SharedLocation.Query -> setQuery(s.text)
-            is SharedLocation.ShortLink -> {
-                val waiting = NavPlace(s.name ?: SHARED_NAME, "", 0.0, 0.0)
-                _state.value = NavState.Preparing(waiting, null)
-                routeJob?.cancel()
-                routeJob = viewModelScope.launch {
-                    val full = try {
-                        resolveShortLink(s.url)
-                    } catch (c: CancellationException) {
-                        throw c
-                    } catch (_: Exception) {
-                        null
+        val parsed = parseSharedLocation(raw) ?: return
+        // A new shared place replaces any earlier shared route / stop on the way.
+        sharedStopsJob?.cancel()
+        sharedVias.clear()
+        finalDestination = null
+        openSharedLocation(parsed, waiting = null)
+    }
+
+    /** [waiting] is the "Preparing" placeholder shown while a short link was opened. */
+    private fun openSharedLocation(s: SharedLocation, waiting: NavPlace?) {
+        when (s) {
+            is SharedLocation.Point -> navigateTo(sharedPlace(s.name, s.latitude, s.longitude))
+            is SharedLocation.Query -> {
+                if (waiting != null) _state.value = NavState.Idle
+                searchShared(s.text, s.near)
+            }
+            is SharedLocation.Route -> openSharedRoute(s, waiting)
+            is SharedLocation.ShortLink -> if (waiting == null) {
+                resolveSharedLink(s)
+            } else {
+                _state.value = NavState.Failed(waiting, "Couldn't open that link — check the car's internet")
+            }
+        }
+    }
+
+    private fun resolveSharedLink(s: SharedLocation.ShortLink) {
+        val waiting = NavPlace(s.name ?: SHARED_NAME, "", 0.0, 0.0)
+        _state.value = NavState.Preparing(waiting, null)
+        routeJob?.cancel()
+        routeJob = viewModelScope.launch {
+            val full = try {
+                resolveShortLink(s.url)
+            } catch (c: CancellationException) {
+                throw c
+            } catch (_: Exception) {
+                null
+            }
+            // The name Google Maps put in the shared text beats the one in the link.
+            val r = when (val p = full?.let(::parseSharedLocation)) {
+                is SharedLocation.Point -> p.copy(name = s.name ?: p.name)
+                is SharedLocation.Query -> p.copy(text = s.name ?: p.text)
+                is SharedLocation.Route -> p.copy(destination = p.destination.copy(name = s.name ?: p.destination.name))
+                else -> p
+            }
+            if (r == null || r is SharedLocation.ShortLink) {
+                _state.value = NavState.Failed(
+                    waiting,
+                    if (full == null) "Couldn't open that link — check the car's internet"
+                    else "That link has no exact location. In Google Maps, tap the place's red pin, then Share.",
+                )
+            } else {
+                openSharedLocation(r, waiting)
+            }
+        }
+    }
+
+    /**
+     * Directions shared from Google Maps: finds any stop known only by name,
+     * then previews the route to the destination. The stops on the way are
+     * added in order once guidance starts (see [watchSharedStops]).
+     */
+    private fun openSharedRoute(r: SharedLocation.Route, waiting: NavPlace?) {
+        val shown = waiting ?: NavPlace(r.destination.name ?: SHARED_NAME, "", 0.0, 0.0)
+        _state.value = NavState.Preparing(shown, null)
+        routeJob?.cancel()
+        routeJob = viewModelScope.launch {
+            val near = r.near?.let { GeoPoint(it.first, it.second) } ?: lastPosition
+            val destination = findSharedPoint(r.destination, near)
+            if (destination == null) {
+                _state.value = NavState.Failed(
+                    shown,
+                    "Couldn't find ${r.destination.name ?: "that place"} — check the car's internet or search for it",
+                )
+                return@launch
+            }
+            val stops = r.stops.mapNotNull { findSharedPoint(it, near) }
+            sharedVias.clear()
+            sharedVias.addAll(stops)
+            finalDestination = null
+            if (stops.isNotEmpty()) watchSharedStops(destination)
+            navigateTo(destination)
+        }
+    }
+
+    /** A shared point as a place: its own coordinates, else the top search result for its name. */
+    private suspend fun findSharedPoint(p: SharedPoint, near: GeoPoint?): NavPlace? {
+        val lat = p.latitude
+        val lon = p.longitude
+        if (lat != null && lon != null) return sharedPlace(p.name, lat, lon)
+        val name = p.name?.takeIf { it.isNotBlank() } ?: return null
+        val found = try {
+            search.search(name, near, limit = 1).firstOrNull()
+        } catch (c: CancellationException) {
+            throw c
+        } catch (_: Exception) {
+            null
+        } ?: return null
+        return sharedPlace(name, found.latitude, found.longitude)
+    }
+
+    /** Stops of a shared route still to add, in order. */
+    private val sharedVias = ArrayDeque<NavPlace>()
+    private var sharedStopsJob: Job? = null
+
+    /**
+     * Adds a shared route's stops through the existing stop support: whenever
+     * guidance heads for [destination] with no stop pending (guidance just
+     * started, or a stop was reached), the next stop is added with [addStop].
+     * A stop the driver replaced with one of their own (petrol etc.) is
+     * offered again afterwards. Ends when the trip ends or another place is
+     * chosen.
+     */
+    private fun watchSharedStops(destination: NavPlace) {
+        sharedStopsJob?.cancel()
+        sharedStopsJob = viewModelScope.launch {
+            var engaged = false
+            var target: NavPlace? = null
+            var lastGuided: NavPlace? = null
+            state.first { s ->
+                when (s) {
+                    is NavState.Idle, is NavState.Arrived, is NavState.ResumeOffer -> {
+                        sharedVias.clear()
+                        true
                     }
-                    when (val r = full?.let(::parseSharedLocation)) {
-                        is SharedLocation.Point -> navigateTo(sharedPlace(r.copy(name = s.name ?: r.name)))
-                        is SharedLocation.Query -> {
-                            _state.value = NavState.Idle
-                            setQuery(s.name ?: r.text)
+                    is NavState.Guiding -> {
+                        engaged = true
+                        if (s.place != destination || finalDestination != null) {
+                            lastGuided = s.place
+                            return@first false
                         }
-                        else -> _state.value = NavState.Failed(
-                            waiting,
-                            if (full == null) "Couldn't open that link — check the car's internet"
-                            else "That link has no exact location. In Google Maps, tap the place's red pin, then Share.",
-                        )
+                        // Let the code that just set this state (beginGuiding / arrival in
+                        // onLocation) finish its own reroute first, then re-check.
+                        delay(50L)
+                        val now = _state.value
+                        if (now !is NavState.Guiding || now.place != destination || finalDestination != null) {
+                            return@first false
+                        }
+                        // Arrived here from a stop of the driver's own, not ours: ours is still to visit.
+                        target?.let { if (lastGuided != it) sharedVias.addFirst(it) }
+                        val next = sharedVias.removeFirstOrNull()
+                        target = next
+                        if (next == null) return@first true
+                        lastGuided = next
+                        addStop(next)
+                        false
                     }
+                    is NavState.Preparing -> sharedPlaceChanged(s.place, destination, engaged).also { engaged = engaged || s.place == destination }
+                    is NavState.Preview -> sharedPlaceChanged(s.place, destination, engaged).also { engaged = engaged || s.place == destination }
+                    is NavState.Failed -> sharedPlaceChanged(s.place, destination, engaged).also { engaged = engaged || s.place == destination }
                 }
             }
         }
     }
 
-    private fun sharedPlace(p: SharedLocation.Point) =
-        NavPlace(p.name ?: SHARED_NAME, "From Google Maps", p.latitude, p.longitude)
+    /** True (stop watching) when the driver picked a different place after the shared route showed. */
+    private fun sharedPlaceChanged(place: NavPlace, destination: NavPlace, engaged: Boolean): Boolean {
+        if (!engaged || place == destination || finalDestination != null) return false
+        sharedVias.clear()
+        return true
+    }
+
+    /** A name-only search link: results near the map the link showed (else near the car). */
+    private fun searchShared(text: String, near: Pair<Double, Double>?) {
+        if (near == null) {
+            setQuery(text)
+            return
+        }
+        searchJob?.cancel()
+        _search.value = SearchState(query = text, loading = true)
+        searchJob = viewModelScope.launch {
+            try {
+                val found = search.search(text.trim(), GeoPoint(near.first, near.second))
+                _search.value = _search.value.copy(results = found, loading = false, error = null)
+            } catch (c: CancellationException) {
+                throw c
+            } catch (_: Exception) {
+                _search.value = _search.value.copy(loading = false, error = "Search needs internet — check the car's Wi-Fi")
+            }
+        }
+    }
+
+    /** "Asandra, Uttar Pradesh" → name "Asandra", detail "Uttar Pradesh". */
+    private fun sharedPlace(name: String?, latitude: Double, longitude: Double): NavPlace {
+        val full = name?.trim().orEmpty()
+        val head = full.substringBefore(", ").trim()
+        return if (head.length >= 3 && head.any { it.isLetter() } && head.length < full.length) {
+            NavPlace(head, full.substringAfter(", ").trim(), latitude, longitude)
+        } else {
+            NavPlace(full.ifEmpty { SHARED_NAME }, "From Google Maps", latitude, longitude)
+        }
+    }
 
     // ---- stops on the way (petrol, CNG, EV, toilets, food) -------------------
 

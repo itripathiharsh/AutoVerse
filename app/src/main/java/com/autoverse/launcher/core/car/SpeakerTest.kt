@@ -1,18 +1,22 @@
 package com.autoverse.launcher.core.car
 
+import android.content.Context
 import android.media.AudioAttributes
+import android.media.AudioDeviceInfo
 import android.media.AudioFormat
+import android.media.AudioManager
 import android.media.AudioTrack
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
-import kotlin.coroutines.coroutineContext
 import kotlin.math.PI
 import kotlin.math.exp
 import kotlin.math.ln
 import kotlin.math.sin
 
-/** What the speaker test plays. */
+/** The extra whole-system tones (per-speaker tones are [SpeakerPosition]). */
 enum class SpeakerTone(val label: String, val detail: String) {
     LEFT("Left", "Voice tone on the left speakers only"),
     RIGHT("Right", "Voice tone on the right speakers only"),
@@ -24,16 +28,122 @@ enum class SpeakerTone(val label: String, val detail: String) {
 
 /**
  * Generates test tones in memory and plays them through the media stream.
- * Front/rear fade is controlled by the head unit's own sound settings on
- * most units, so the test covers left/right, bass, sweep and phase.
+ *
+ * Most head units give apps a stereo output and do front/rear balance in
+ * their own DSP (the fader). [detect] only reports a multichannel output when
+ * the unit's speaker output says it has 4+ channels and a track in that
+ * layout opens; then each speaker gets its own channel. Otherwise rear
+ * speakers need the unit's fader (see [SpeakerRoute.needsFader]).
  */
 object SpeakerTest {
     private const val RATE = 44_100
+    private const val ENCODING = AudioFormat.ENCODING_PCM_16BIT
 
-    suspend fun play(tone: SpeakerTone) = withContext(Dispatchers.Default) {
+    /** Output device types that feed the cabin speakers (not HDMI, USB, Bluetooth, headsets). */
+    private val CABIN_OUTPUT_TYPES = setOf(
+        AudioDeviceInfo.TYPE_BUILTIN_SPEAKER,
+        AudioDeviceInfo.TYPE_LINE_ANALOG,
+        AudioDeviceInfo.TYPE_AUX_LINE,
+        21, // AudioDeviceInfo.TYPE_BUS (API 24): Android Automotive amplifier buses
+        24, // AudioDeviceInfo.TYPE_BUILTIN_SPEAKER_SAFE (API 30)
+    )
+
+    /** Works out whether speakers can be addressed directly. Never throws. */
+    suspend fun detect(context: Context): SpeakerOutputInfo = withContext(Dispatchers.Default) {
+        val reported = reportedCabinChannels(context)
+        val output = chooseSpeakerOutput(reported) { canOpen(it.channelMask) }
+        SpeakerOutputInfo(output, reported)
+    }
+
+    private fun reportedCabinChannels(context: Context): Int = try {
+        val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        am.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+            .filter { it.isSink && it.type in CABIN_OUTPUT_TYPES }
+            .maxOfOrNull { reportedChannelCount(it.channelCounts, it.channelMasks) } ?: 0
+    } catch (_: Exception) {
+        0
+    }
+
+    private fun canOpen(mask: Int): Boolean {
+        val min = AudioTrack.getMinBufferSize(RATE, mask, ENCODING)
+        if (min <= 0) return false
+        var track: AudioTrack? = null
+        return try {
+            track = buildTrack(mask, min)
+            track.state == AudioTrack.STATE_INITIALIZED
+        } catch (_: Exception) {
+            false
+        } finally {
+            track?.release()
+        }
+    }
+
+    /**
+     * Plays one speaker's tone. Falls back to stereo if the direct layout
+     * fails to open. Returns the output actually used.
+     */
+    suspend fun playSpeaker(position: SpeakerPosition, output: SpeakerOutput, seconds: Double): SpeakerOutput {
+        if (output.isDirect) {
+            try {
+                playPcm(renderRoute(speakerRoute(position, output), seconds, RATE), output.channelMask)
+                return output
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // The unit refused the multichannel track: carry on in stereo.
+            }
+        }
+        val stereo = SpeakerOutput.STEREO
+        playPcm(renderRoute(speakerRoute(position, stereo), seconds, RATE), stereo.channelMask)
+        return stereo
+    }
+
+    /** One of the extra stereo tones (sweep, phase, ...). */
+    suspend fun play(tone: SpeakerTone) {
         val seconds = if (tone == SpeakerTone.SWEEP) 8.0 else 2.5
-        val pcm = render(tone, seconds)
-        val track = AudioTrack.Builder()
+        playPcm(render(tone, seconds), SpeakerChannels.STEREO)
+    }
+
+    /**
+     * Streams interleaved PCM in small chunks so cancelling stops it within a
+     * few tens of milliseconds. Always stops and releases the track.
+     */
+    private suspend fun playPcm(pcm: ShortArray, channelMask: Int) = withContext(Dispatchers.Default) {
+        val channels = SpeakerChannels.count(channelMask)
+        val min = AudioTrack.getMinBufferSize(RATE, channelMask, ENCODING)
+        check(min > 0) { "Channel layout not supported" }
+        val bufferBytes = maxOf(min, RATE / 10 * channels * 2) // about 100 ms
+        val track = buildTrack(channelMask, bufferBytes)
+        try {
+            check(track.state == AudioTrack.STATE_INITIALIZED) { "AudioTrack not initialised" }
+            track.play()
+            val chunk = RATE / 50 * channels // 20 ms, a whole number of frames
+            var offset = 0
+            while (offset < pcm.size) {
+                ensureActive()
+                val written = track.write(pcm, offset, minOf(chunk, pcm.size - offset))
+                if (written <= 0) break
+                offset += written
+            }
+            // Let the buffered tail play out (it is already faded to silence).
+            val totalFrames = pcm.size / channels
+            val deadline = System.currentTimeMillis() + 1_000
+            while (track.playbackHeadPosition < totalFrames && System.currentTimeMillis() < deadline) {
+                ensureActive()
+                delay(20)
+            }
+        } finally {
+            runCatching {
+                track.pause()
+                track.flush()
+            }
+            runCatching { track.stop() }
+            track.release()
+        }
+    }
+
+    private fun buildTrack(channelMask: Int, bufferBytes: Int): AudioTrack =
+        AudioTrack.Builder()
             .setAudioAttributes(
                 AudioAttributes.Builder()
                     .setUsage(AudioAttributes.USAGE_MEDIA)
@@ -42,27 +152,14 @@ object SpeakerTest {
             )
             .setAudioFormat(
                 AudioFormat.Builder()
-                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                    .setEncoding(ENCODING)
                     .setSampleRate(RATE)
-                    .setChannelMask(AudioFormat.CHANNEL_OUT_STEREO)
+                    .setChannelMask(channelMask)
                     .build(),
             )
-            .setTransferMode(AudioTrack.MODE_STATIC)
-            .setBufferSizeInBytes(pcm.size * 2)
+            .setTransferMode(AudioTrack.MODE_STREAM)
+            .setBufferSizeInBytes(bufferBytes)
             .build()
-        try {
-            track.write(pcm, 0, pcm.size)
-            track.play()
-            val endAt = System.currentTimeMillis() + (seconds * 1000).toLong()
-            while (System.currentTimeMillis() < endAt) {
-                coroutineContext.ensureActive()
-                kotlinx.coroutines.delay(50)
-            }
-        } finally {
-            runCatching { track.stop() }
-            track.release()
-        }
-    }
 
     /** Interleaved stereo 16-bit samples. Pure, so the waveform is unit-testable. */
     fun render(tone: SpeakerTone, seconds: Double): ShortArray {
